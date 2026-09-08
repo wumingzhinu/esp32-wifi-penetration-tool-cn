@@ -66,7 +66,8 @@
         </form>
     </section>
     <section id="running" style="display: none;">
-        已用时间: <span id="running-progress"></span>
+        攻击运行中，已用时间: <span id="running-progress"></span>
+        <div style="color:#cc6600;">⚠ 抓包/嗅探期间会断开连接，请稍后重新连接管理热点查看结果</div>
     </section>
     <section id="result" style="display: none;">
         <div id="result-meta">正在加载结果.. 请稍候</div>
@@ -358,7 +359,7 @@
             case AttackTypeEnum.ATTACK_TYPE_HANDSHAKE:
                 console.log("HANDSHAKE configuration");
                 document.getElementById("attack_timeout").value = 60;
-                setAttackMethods(["DEAUTH_ROGUE_AP（伪造热点 - 被动）", "DEAUTH_BROADCAST（广播解除认证 - 主动）", "CAPTURE_ONLY（仅捕获 - 被动）"]);
+                setAttackMethods(["DEAUTH_BROADCAST（广播解除认证 - 主动）", "DEAUTH_ROGUE_AP（伪造热点 - 被动）", "CAPTURE_ONLY（仅捕获 - 被动）"]);
                 break;
             case AttackTypeEnum.ATTACK_TYPE_PMKID:
                 console.log("PMKID configuration");
@@ -367,7 +368,7 @@
             case AttackTypeEnum.ATTACK_TYPE_DOS:
                 console.log("DOS configuration");
                 document.getElementById("attack_timeout").value = 120;
-                setAttackMethods(["DEAUTH_ROGUE_AP（伪造热点 - 被动）", "DEAUTH_BROADCAST（广播解除认证 - 主动）", "DEAUTH_COMBINE_ALL（组合全部）"]);
+                setAttackMethods(["DEAUTH_BROADCAST（广播解除认证 - 主动）", "DEAUTH_ROGUE_AP（伪造热点 - 被动）", "DEAUTH_COMBINE_ALL（组合全部）"]);
                 break;
             default:
                 console.log("Unknown attack type");
@@ -380,7 +381,10 @@
             let option = document.createElement("option");
             option.value = index;
             option.text = method;
-            option.selected = true;
+            // 只默认选中第一个，避免全部 selected=true 时浏览器选到最后一个
+            if(index === 0){
+                option.selected = true;
+            }
             document.getElementById("attack_method").appendChild(option);
         });
     }
