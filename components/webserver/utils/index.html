@@ -179,29 +179,56 @@
         }
         document.getElementById("result-meta").innerHTML += type + "<br>";
     }
+    // wifi_auth_mode_t -> Wifite 风格加密标签
+    function authmodeLabel(mode){
+        var labels = ["OPEN", "WEP", "WPA-P", "WPA2-P", "WPA/WPA2-P", "WPA2-E", "WPA/WPA2-E", "WPA3-P", "WPA2/WPA3-P", "WAPI"];
+        return labels[mode] || "?";
+    }
+    // RSSI 存的是 int8_t，按 uint8 读时 >127 要减 256
+    function signedByte(b){
+        return b > 127 ? b - 256 : b;
+    }
+    // 按信号强度上色
+    function rssiColor(rssi){
+        if(rssi >= -60) return "#00aa00";
+        if(rssi >= -75) return "#dd9900";
+        return "#cc0000";
+    }
     function refreshAps() {
         document.getElementById("ap-list").innerHTML = "加载中（可能需要一些时间）...";
         var oReq = new XMLHttpRequest();
         oReq.onload = function() {
-            document.getElementById("ap-list").innerHTML = "<th>SSID</th><th>BSSID</th><th>信号强度(RSSI)</th>";
+            document.getElementById("ap-list").innerHTML = "<th>ESSID</th><th>CH</th><th>ENCR</th><th>PWR</th><th>BSSID</th>";
             var arrayBuffer = oReq.response;
             if(arrayBuffer) {
                 var byteArray = new Uint8Array(arrayBuffer);
-                for  (let i = 0; i < byteArray.byteLength; i = i + 40) {
+                for  (let i = 0; i < byteArray.byteLength; i = i + 42) {
                     var tr = document.createElement('tr');
-                    tr.setAttribute("id", i / 40);
+                    tr.setAttribute("id", Math.floor(i / 42));
                     tr.setAttribute("onClick", "selectAp(this)");
                     var td_ssid = document.createElement('td');
+                    var td_ch = document.createElement('td');
+                    var td_encr = document.createElement('td');
                     var td_rssi = document.createElement('td');
                     var td_bssid = document.createElement('td');
-                    td_ssid.innerHTML = new TextDecoder("utf-8").decode(byteArray.subarray(i + 0, i + 32));
-                    tr.appendChild(td_ssid);
+                    var ssidText = new TextDecoder("utf-8").decode(byteArray.subarray(i + 0, i + 32));
+                    td_ssid.style.textAlign = "left";
+                    td_ssid.innerHTML = ssidText ? ssidText : "(隐藏热点)";
+                    td_ch.innerHTML = byteArray[i + 40];
+                    td_encr.innerHTML = authmodeLabel(byteArray[i + 41]);
+                    var rssi = signedByte(byteArray[i + 39]);
+                    td_rssi.style.color = rssiColor(rssi);
+                    td_rssi.innerHTML = rssi + " dBm";
                     for(let j = 0; j < 6; j++){
                         td_bssid.innerHTML += uint8ToHex(byteArray[i + 33 + j]) + ":";
                     }
-                    tr.appendChild(td_bssid);
-                    td_rssi.innerHTML = byteArray[i + 39] - 255;
+                    td_bssid.style.textAlign = "left";
+                    td_bssid.innerHTML = td_bssid.innerHTML.slice(0, -1);
+                    tr.appendChild(td_ssid);
+                    tr.appendChild(td_ch);
+                    tr.appendChild(td_encr);
                     tr.appendChild(td_rssi);
+                    tr.appendChild(td_bssid);
                     document.getElementById("ap-list").appendChild(tr);
                 }
             }
