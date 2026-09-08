@@ -37,7 +37,7 @@ ESP_EVENT_DEFINE_BASE(WEBSERVER_EVENTS);
  * @{
  */
 static esp_err_t uri_root_get_handler(httpd_req_t *req) {
-    httpd_resp_set_type(req, "text/html");
+    httpd_resp_set_type(req, "text/html; charset=utf-8");
     httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
     return httpd_resp_send(req, (const char *)page_index, page_index_len);
 }
