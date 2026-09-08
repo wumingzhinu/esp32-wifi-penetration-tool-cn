@@ -10,17 +10,16 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: espressif/idf:v4.1
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
 
-      - name: Build
-        shell: bash
-        run: |
-          . $IDF_PATH/export.sh
-          idf.py build
+      - name: ESP-IDF Build
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v4.1
+          target: esp32
 
       - name: Upload firmware
         uses: actions/upload-artifact@v3
