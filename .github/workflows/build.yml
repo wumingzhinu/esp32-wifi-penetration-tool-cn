@@ -1,9 +1,7 @@
-name: ESP-IDF Build
+name: ESP-IDF Build (ESP32-C3)
 
 on:
   push:
-    branches: [cn-localization, master]
-  pull_request:
     branches: [cn-localization, master]
   workflow_dispatch:
 
@@ -23,26 +21,27 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git wget flex bison gperf python3 python3-pip python3-venv cmake ninja-build ccache libffi-dev libssl-dev dfu-util libusb-1.0-0
+          sudo apt-get install -y git wget flex bison gperf python3-pip python3-venv cmake ninja-build ccache libffi-dev libssl-dev dfu-util libusb-1.0-0
 
-      - name: Install ESP-IDF v4.1
+      - name: Install ESP-IDF v4.4
         run: |
           mkdir -p ~/esp
           cd ~/esp
-          git clone -b v4.1 --recursive https://github.com/espressif/esp-idf.git esp-idf-v4.1
-          cd esp-idf-v4.1
+          git clone -b v4.4 --recursive https://github.com/espressif/esp-idf.git esp-idf-v4.4
+          cd esp-idf-v4.4
           pip install setuptools
           ./install.sh
 
-      - name: Build
+      - name: Build for ESP32-C3
         run: |
-          . ~/esp/esp-idf-v4.1/export.sh
+          . ~/esp/esp-idf-v4.4/export.sh
+          idf.py set-target esp32c3
           idf.py build
 
       - name: Upload firmware
         uses: actions/upload-artifact@v4
         with:
-          name: esp32-firmware
+          name: esp32c3-firmware
           path: |
             build/esp32-wifi-penetration-tool.bin
             build/bootloader/bootloader.bin
