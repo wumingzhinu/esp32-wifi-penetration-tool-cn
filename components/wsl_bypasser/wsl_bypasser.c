@@ -35,12 +35,17 @@ static const uint8_t deauth_frame_default[] = {
 };
 
 /**
- * @brief Decomplied function that overrides original one at compilation time.
- * 
- * @attention This function is not meant to be called!
- * @see Project with original idea/implementation https://github.com/GANESH-ICMC/esp32-deauther
+ * @brief Wrap override for ieee80211_raw_frame_sanity_check.
+ *
+ * 配合 CMakeLists.txt 中的 -Wl,--wrap=ieee80211_raw_frame_sanity_check 使用：
+ * 链接器会把 Wi-Fi 库内对 ieee80211_raw_frame_sanity_check 的调用全部重定向到本函数，
+ * 本函数恒返回 0，使帧合法性检查始终通过，从而允许发送解除认证/伪造热点等原始 802.11 帧。
+ * 该机制不依赖链接顺序（优于 -Wl,-zmuldefs），ESP32 与 ESP32-C3 通用。
+ *
+ * @attention 本函数不应被直接调用，仅供链接器 --wrap 重定向使用！
+ * @see 原始思路/实现 https://github.com/GANESH-ICMC/esp32-deauther
  */
-int ieee80211_raw_frame_sanity_check(int32_t arg, int32_t arg2, int32_t arg3){
+int __wrap_ieee80211_raw_frame_sanity_check(int32_t arg, int32_t arg2, int32_t arg3){
     return 0;
 }
 
