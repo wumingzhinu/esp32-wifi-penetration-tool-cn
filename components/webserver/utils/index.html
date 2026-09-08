@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>ESP32 Management AP</title>
+    <title>ESP32 管理热点</title>
     <style>
         body {
             width: fit-content;
@@ -22,53 +22,53 @@
     </style>
 </head>
 <body onLoad="getStatus()">
-    <h1>ESP32 Wi-Fi Penetration Tool</h1>
+    <h1>ESP32 Wi-Fi 渗透测试工具</h1>
     <section id="errors"></section>
-    <section id="loading">Loading... Please wait</section>
+    <section id="loading">加载中... 请稍候</section>
     <section id="ready" style="display: none;">
-        <h2>Attack configuration</h2>
+        <h2>攻击配置</h2>
         <form onSubmit="runAttack(); return false;">
             <fieldset>
-                <legend>Select target</legend>
+                <legend>选择目标</legend>
                 <table id="ap-list"></table>
                 <p>
-                    <button type="button" onClick="refreshAps()">Refresh</button>
+                    <button type="button" onClick="refreshAps()">刷新</button>
                 </p>
             </fieldset>
             <fieldset>
-                <legend>Attack configuration</legend>
+                <legend>攻击配置</legend>
                 <p>
-                    <label for="attack_type">Attack type:</label>
+                    <label for="attack_type">攻击类型:</label>
                     <select id="attack_type" onChange="updateConfigurableFields(this)" required>
-                        <option value="0" title="This type is not implemented yet." disabled>ATTACK_TYPE_PASSIVE</option>
-                        <option value="1">ATTACK_TYPE_HANDSHAKE</option>
-                        <option value="2" selected>ATTACK_TYPE_PMKID</option>
-                        <option value="3">ATTACK_TYPE_DOS</option>
+                        <option value="0" title="此类型尚未实现。" disabled>ATTACK_TYPE_PASSIVE（被动攻击）</option>
+                        <option value="1">ATTACK_TYPE_HANDSHAKE（握手捕获）</option>
+                        <option value="2" selected>ATTACK_TYPE_PMKID（PMKID 捕获）</option>
+                        <option value="3">ATTACK_TYPE_DOS（拒绝服务）</option>
                     </select>
                 </p>
                 <p>
-                    <label for="attack_method">Attack method:</label>
+                    <label for="attack_method">攻击方式:</label>
                     <select id="attack_method" required disabled>
-                        <option value="" selected disabled hidden>NOT AVAILABLE</option>
+                        <option value="" selected disabled hidden>不可用</option>
                     </select>
                 </p>
                 <p>
-                    <label for="attack_timeout">Attack timeout (seconds):</label>
+                    <label for="attack_timeout">攻击超时时间（秒）:</label>
                     <input type="number" min="0" max="255" id="attack_timeout" value="" required/>
                 </p>
                 <p>
-                    <button>Attack</button>
+                    <button>开始攻击</button>
                 </p>
             </fieldset>
         </form>
     </section>
     <section id="running" style="display: none;">
-        Time elapsed: <span id="running-progress"></span>
+        已用时间: <span id="running-progress"></span>
     </section>
     <section id="result" style="display: none;">
-        <div id="result-meta">Loading result.. Please wait</div>
+        <div id="result-meta">正在加载结果.. 请稍候</div>
         <div id="result-content"></div>
-        <button type="button" onClick="resetAttack()">New attack</button>
+        <button type="button" onClick="resetAttack()">新建攻击</button>
     </section>
     <script>
     var AttackStateEnum = { READY: 0, RUNNING: 1, FINISHED: 2, TIMEOUT: 3};
@@ -92,7 +92,7 @@
                 var attack_content_size = parseInt(new Uint16Array(arrayBuffer, 2, 1));
                 var attack_content = new Uint8Array(arrayBuffer, 4);
                 console.log("attack_state=" + attack_state + "; attack_type=" + attack_type + "; attack_count_size=" + attack_content_size);
-                var status = "ERROR: Cannot parse attack state.";
+                var status = "错误：无法解析攻击状态。";
                 hideAllSections();
                 switch(attack_state) {
                     case AttackStateEnum.READY:
@@ -104,13 +104,13 @@
                         setTimeout(getStatus, poll_interval);
                         break;
                     case AttackStateEnum.FINISHED:
-                        showResult("FINISHED", attack_type, attack_content_size, attack_content);
+                        showResult("已完成", attack_type, attack_content_size, attack_content);
                         break;
                     case AttackStateEnum.TIMEOUT:
-                        showResult("TIMEOUT", attack_type, attack_content_size, attack_content);
+                        showResult("已超时", attack_type, attack_content_size, attack_content);
                         break;
                     default:
-                        document.getElementById("errors").innerHTML = "Error loading attack status! Unknown state.";
+                        document.getElementById("errors").innerHTML = "加载攻击状态失败！未知状态。";
                 }
                 return;
                 
@@ -118,7 +118,7 @@
         };
         oReq.onerror = function() {
             console.log("Request error");
-            document.getElementById("errors").innerHTML = "Cannot reach ESP32. Check that you are connected to management AP. You might get disconnected during attack.";
+            document.getElementById("errors").innerHTML = "无法连接到 ESP32。请检查是否已连接到管理热点。在攻击过程中您可能会被断开连接。";
             getStatus();
         };
         oReq.ontimeout = function() {
@@ -140,11 +140,11 @@
     }
     function countProgress(){
         if(time_elapsed >= attack_timeout){
-            document.getElementById("errors").innerHTML = "Please reconnect to management AP";
+            document.getElementById("errors").innerHTML = "请重新连接到管理热点";
             document.getElementById("errors").style.display = "block";
             clearInterval(running_poll);
         }
-        document.getElementById("running-progress").innerHTML = time_elapsed + "/" + attack_timeout + "s";
+        document.getElementById("running-progress").innerHTML = time_elapsed + "/" + attack_timeout + "秒";
         time_elapsed++;
     }
     function showAttackConfig(){
@@ -157,32 +157,32 @@
         document.getElementById("result").innerHTML = defaultResultContent;
         document.getElementById("result").style.display = "block";
         document.getElementById("result-meta").innerHTML = status + "<br>";
-        type = "ERROR: Cannot parse attack type.";
+        type = "错误：无法解析攻击类型。";
         switch(attack_type) {
             case AttackTypeEnum.ATTACK_TYPE_PASSIVE:
-                type = "ATTACK_TYPE_PASSIVE";
+                type = "ATTACK_TYPE_PASSIVE（被动攻击）";
                 break;
             case AttackTypeEnum.ATTACK_TYPE_HANDSHAKE:
-                type = "ATTACK_TYPE_HANDSHAKE";
+                type = "ATTACK_TYPE_HANDSHAKE（握手捕获）";
                 resultHandshake(attack_content, attack_content_size);
                 break;
             case AttackTypeEnum.ATTACK_TYPE_PMKID:
-                type = "ATTACK_TYPE_PMKID";
+                type = "ATTACK_TYPE_PMKID（PMKID 捕获）";
                 resultPmkid(attack_content, attack_content_size);
                 break;
             case AttackTypeEnum.ATTACK_TYPE_DOS:
-                type = "ATTACK_TYPE_DOS";
+                type = "ATTACK_TYPE_DOS（拒绝服务）";
                 break;
             default:
-                type = "UNKNOWN";
+                type = "未知";
         }
         document.getElementById("result-meta").innerHTML += type + "<br>";
     }
     function refreshAps() {
-        document.getElementById("ap-list").innerHTML = "Loading (this may take a while)...";
+        document.getElementById("ap-list").innerHTML = "加载中（可能需要一些时间）...";
         var oReq = new XMLHttpRequest();
         oReq.onload = function() {
-            document.getElementById("ap-list").innerHTML = "<th>SSID</th><th>BSSID</th><th>RSSI</th>";
+            document.getElementById("ap-list").innerHTML = "<th>SSID</th><th>BSSID</th><th>信号强度(RSSI)</th>";
             var arrayBuffer = oReq.response;
             if(arrayBuffer) {
                 var byteArray = new Uint8Array(arrayBuffer);
@@ -206,7 +206,7 @@
             }
         };
         oReq.onerror = function() {
-            document.getElementById("ap-list").innerHTML = "ERROR";
+            document.getElementById("ap-list").innerHTML = "错误";
         };
         oReq.open("GET", "http://192.168.4.1/ap-list", true);
         oReq.responseType = "arraybuffer";
@@ -223,7 +223,7 @@
     function runAttack() {
         if(selectedApElement == -1){
             console.log("No AP selected. Attack not started.");
-            document.getElementById("errors").innerHTML = "No AP selected. Attack not started.";
+            document.getElementById("errors").innerHTML = "未选择目标热点。攻击未开始。";
             return;
         }
         hideAllSections();
@@ -279,21 +279,21 @@
             pmkid += uint8ToHex(attack_content[index + i]);
         }
         document.getElementById("result-content").innerHTML = "";
-        document.getElementById("result-content").innerHTML += "MAC AP: <code>" + mac_ap + "</code><br>";
-        document.getElementById("result-content").innerHTML += "MAC STA: <code>" + mac_sta + "</code><br>";
+        document.getElementById("result-content").innerHTML += "AP 的 MAC 地址: <code>" + mac_ap + "</code><br>";
+        document.getElementById("result-content").innerHTML += "STA 的 MAC 地址: <code>" + mac_sta + "</code><br>";
         document.getElementById("result-content").innerHTML += "(E)SSID: <code>" + ssid + "</code> (" + ssid_text + ")";
         document.getElementById("result-content").innerHTML += "<code>" + pmkid + "</code><br>";
-        document.getElementById("result-content").innerHTML += "<br>Hashcat ready format:"
+        document.getElementById("result-content").innerHTML += "<br>Hashcat 就绪格式:"
         document.getElementById("result-content").innerHTML += "<code>" + pmkid + "*" + mac_ap + "*" + mac_sta  + "*" + ssid  + "</code><br>";
     }
     function resultHandshake(attack_content, attack_content_size){
         document.getElementById("result-content").innerHTML = "";
         var pcap_link = document.createElement("a");
         pcap_link.setAttribute("href", "capture.pcap");
-        pcap_link.text = "Download PCAP file";
+        pcap_link.text = "下载 PCAP 文件";
         var hccapx_link = document.createElement("a");
         hccapx_link.setAttribute("href", "capture.hccapx");
-        hccapx_link.text = "Download HCCAPX file";
+        hccapx_link.text = "下载 HCCAPX 文件";
         document.getElementById("result-content").innerHTML += "<p>" + pcap_link.outerHTML + "</p>";
         document.getElementById("result-content").innerHTML += "<p>" + hccapx_link.outerHTML + "</p>";
         var handshakes = "";
@@ -317,7 +317,7 @@
             case AttackTypeEnum.ATTACK_TYPE_HANDSHAKE:
                 console.log("HANDSHAKE configuration");
                 document.getElementById("attack_timeout").value = 60;
-                setAttackMethods(["DEAUTH_ROGUE_AP (PASSIVE)", "DEAUTH_BROADCAST (ACTIVE)", "CAPTURE_ONLY (PASSIVE)"]);
+                setAttackMethods(["DEAUTH_ROGUE_AP（伪造热点 - 被动）", "DEAUTH_BROADCAST（广播解除认证 - 主动）", "CAPTURE_ONLY（仅捕获 - 被动）"]);
                 break;
             case AttackTypeEnum.ATTACK_TYPE_PMKID:
                 console.log("PMKID configuration");
@@ -326,7 +326,7 @@
             case AttackTypeEnum.ATTACK_TYPE_DOS:
                 console.log("DOS configuration");
                 document.getElementById("attack_timeout").value = 120;
-                setAttackMethods(["DEAUTH_ROGUE_AP (PASSIVE)", "DEAUTH_BROADCAST (ACTIVE)", "DEAUTH_COMBINE_ALL"]);
+                setAttackMethods(["DEAUTH_ROGUE_AP（伪造热点 - 被动）", "DEAUTH_BROADCAST（广播解除认证 - 主动）", "DEAUTH_COMBINE_ALL（组合全部）"]);
                 break;
             default:
                 console.log("Unknown attack type");

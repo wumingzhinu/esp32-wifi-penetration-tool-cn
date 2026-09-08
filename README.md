@@ -1,120 +1,119 @@
-# ESP32 Wi-Fi Penetration Tool
+# ESP32 Wi-Fi 渗透测试工具
 
-This project introduces an universal tool for ESP32 platform for implementing various Wi-Fi attacks. It provides some common functionality that is commonly used in Wi-Fi attacks and makes implementing new attacks a bit simpler. It also includes Wi-Fi attacks itself like capturing PMKIDs from handshakes, or handshakes themselves by different methods like starting rogue duplicated AP or sending deauthentication frames directly, etc...
+本项目为 ESP32 平台提供了一个通用工具，用于实现各种 Wi-Fi 攻击。它提供了一些 Wi-Fi 攻击中常用的通用功能，使实现新攻击变得更加简单。它还包含了 Wi-Fi 攻击本身的实现，例如从握手中捕获 PMKID，或通过不同方法捕获握手本身（如启动伪造的重复热点或直接发送解除认证帧等）...
 
-Obviously cracking is not part of this project, as ESP32 is not sufficient to crack hashes in effective way. The rest can be done on this small, cheap, low-power SoC.
+显然，破解哈希不是本项目的一部分，因为 ESP32 无法以高效的方式破解哈希。其余的工作都可以在这个小型、廉价、低功耗的 SoC 上完成。
 
 <p align="center">
     <img src="doc/images/logo.png" alt="Logo">
 </p>
 
-## Features
-- **PMKID capture**
-- **WPA/WPA2 handshake capture** and parsing
-- **Deauthentication attacks** using various methods
-- **Denial of Service attacks**
-- Formatting captured traffic into **PCAP format**
-- Parsing captured handshakes into **HCCAPX file** ready to be cracked by Hashcat
-- Passive handshake sniffing
-- Easily extensible framework for new attacks implementations
-- Management AP for easy configuration on the go using smartphone for example
-- And more...
+## 功能特性
+- **PMKID 捕获**
+- **WPA/WPA2 握手捕获**与解析
+- 使用多种方法的**解除认证攻击**
+- **拒绝服务攻击**
+- 将捕获的流量格式化为 **PCAP 格式**
+- 将捕获的握手解析为 **HCCAPX 文件**，可直接用于 Hashcat 破解
+- 被动握手嗅探
+- 易于扩展的框架，便于实现新的攻击
+- 管理热点，方便随时使用智能手机等进行配置
+- 以及更多...
 
-### Demo video
-[![Demonstration Youtube video](https://img.youtube.com/vi/9I3BxRu86GE/0.jpg)](https://www.youtube.com/watch?v=9I3BxRu86GE)
+### 演示视频
+[![演示视频（YouTube）](https://img.youtube.com/vi/9I3BxRu86GE/0.jpg)](https://www.youtube.com/watch?v=9I3BxRu86GE)
 
 
-## Usage
-1. [Build](#Build) and [flash](#Flash) project onto ESP32 (DevKit or module)
-1. Power ESP32
-1. Management AP is started automatically after boot
-1. Connect to this AP\
-By default: 
-*SSID:* `ManagementAP` and *password:* `mgmtadmin`
-1. In browser open `192.168.4.1` and you should see a web client to configure and control tool like this:
+## 使用方法
+1. [编译](#编译)并[烧录](#烧录)项目到 ESP32（开发板或模块）
+1. 给 ESP32 供电
+1. 管理热点在启动后自动开启
+1. 连接到此热点\
+默认配置：
+*SSID:* `ManagementAP`，*密码:* `mgmtadmin`
+1. 在浏览器中打开 `192.168.4.1`，您将看到一个用于配置和控制工具的 Web 客户端，如下所示：
 
-    ![Web client UI](doc/images/ui-config.png)
+    ![Web 客户端界面](doc/images/ui-config.png)
 
-## Build
-This project is currently developed using ESP-IDF 4.1 (commit `5ef1b390026270503634ac3ec9f1ec2e364e23b2`). It may be broken on newer version.
+## 编译
+本项目目前使用 ESP-IDF 4.1（commit `5ef1b390026270503634ac3ec9f1ec2e364e23b2`）开发。在更新版本上可能无法正常工作。
 
-Project can be built in the usual ESP-IDF way:
+项目可以按照常规的 ESP-IDF 方式编译：
 
 ```shell
 idf.py build
 ```
 
-Legacy method using `make` is not supported by this project.
+本项目不支持使用 `make` 的传统编译方式。
 
-## Flash
-If you have setup ESP-IDF, the easiest way is to use `idf.py flash`.
+## 烧录
+如果您已配置好 ESP-IDF，最简单的方式是使用 `idf.py flash`。
 
-In case you don't want to setup whole ESP-IDF, you can use pre-build binaries included in [`build/`](build/) and flash them using [`esptool.py`](https://github.com/espressif/esptool) (requires Python).
+如果您不想配置完整的 ESP-IDF，可以使用 [`build/`](build/) 中预编译的二进制文件，并通过 [`esptool.py`](https://github.com/espressif/esptool)（需要 Python）进行烧录。
 
-Example command (follow instructions in [esptool repo](https://github.com/espressif/esptool)):
+示例命令（请遵循 [esptool 仓库](https://github.com/espressif/esptool)中的说明）：
 ```
 esptool.py -p /dev/ttyS5 -b 115200 --after hard_reset write_flash --flash_mode dio --flash_freq 40m --flash_size detect 0x8000 build/partition_table/partition-table.bin 0x1000 build/bootloader/bootloader.bin 0x10000 build/esp32-wifi-penetration-tool.bin
 ```
 
-On Windows you can use official [Flash Download Tool](https://www.espressif.com/en/support/download/other-tools).
+在 Windows 上，您可以使用官方的 [Flash Download Tool](https://www.espressif.com/en/support/download/other-tools)。
 
-## Documentation
-### Wi-Fi attacks
-Attacks implementations in this project are described in [main component README](main/). Theory behind these attacks is located in [doc/ATTACKS_THEORY.md](doc/ATTACKS_THEORY.md)
-### API reference
-This project uses Doxygen notation for documenting components API and implementation. Doxyfile is included so if you want to generate API reference, just run `doxygen` from root directory. It will generate HTML API reference into `doc/api/html`.
+## 文档
+### Wi-Fi 攻击
+本项目中的攻击实现在 [main 组件 README](main/) 中有详细描述。这些攻击背后的原理位于 [doc/ATTACKS_THEORY.md](doc/ATTACKS_THEORY.md)
+### API 参考
+本项目使用 Doxygen 标注来记录组件 API 和实现。项目中包含 Doxyfile，如果您想生成 API 参考，只需在根目录运行 `doxygen` 即可。它将在 `doc/api/html` 中生成 HTML API 参考。
 
-### Components
-This project consists of multiple components, that can be reused in other projects. Each component has it's own README with detailed description. Here comes brief description of components:
+### 组件
+本项目由多个组件组成，这些组件可以在其他项目中复用。每个组件都有自己的 README，包含详细描述。以下是各组件的简要说明：
 
-- [**Main**](main) component is entry point for this project. All neccessary initialisation steps are done here. Management AP is started and the control is handed to webserver.
-- [**Wifi Controller**](components/wifi_controller) component wraps all Wi-Fi related operations. It's used to start AP, connect as STA, scan nearby APs etc. 
-- [**Webserver**](components/webserver) component provides web UI to configure attacks. It expects that AP is started and no additional security features like SSL encryption are enabled.
-- [**Wi-Fi Stack Libraries Bypasser**](components/wsl_bypasser) component bypasses Wi-Fi Stack Libraries restriction to send some types of arbitrary 802.11 frames.
-- [**Frame Analyzer**](components/frame_analyzer) component processes captured frames and provides parsing functionality to other components.
-- [**PCAP Serializer**](components/pcap_serializer) component serializes captured frames into PCAP binary format and provides it to other components (mostly for webserver/UI)
-- [**HCCAPX Serializer**](components/hccapx_serializer) component serializes captured frames into HCCAPX binary format and provides it to other components (mostly for webserver/UI)
+- [**Main（主组件）**](main) 是本项目的入口点。所有必要的初始化步骤都在这里完成。管理热点在此启动，控制权随后交给 Web 服务器。
+- [**Wifi Controller（Wi-Fi 控制器）**](components/wifi_controller) 组件封装了所有与 Wi-Fi 相关的操作。用于启动热点、以 STA 模式连接、扫描附近热点等。
+- [**Webserver（Web 服务器）**](components/webserver) 组件提供用于配置攻击的 Web 界面。它要求热点已启动，且未启用 SSL 加密等额外安全功能。
+- [**Wi-Fi Stack Libraries Bypasser（Wi-Fi 协议栈库绕过器）**](components/wsl_bypasser) 组件绕过 Wi-Fi 协议栈库对发送某些类型的任意 802.11 帧的限制。
+- [**Frame Analyzer（帧分析器）**](components/frame_analyzer) 组件处理捕获的帧，并向其他组件提供解析功能。
+- [**PCAP Serializer（PCAP 序列化器）**](components/pcap_serializer) 组件将捕获的帧序列化为 PCAP 二进制格式，并提供给其他组件（主要用于 Web 服务器/界面）
+- [**HCCAPX Serializer（HCCAPX 序列化器）**](components/hccapx_serializer) 组件将捕获的帧序列化为 HCCAPX 二进制格式，并提供给其他组件（主要用于 Web 服务器/界面）
 
-### Further reading
-* [Academic paper about this project (PDF)](https://excel.fit.vutbr.cz/submissions/2021/048/48.pdf)
+### 延伸阅读
+* [关于本项目的学术论文（PDF）](https://excel.fit.vutbr.cz/submissions/2021/048/48.pdf)
 
-## Hardware 
-This project was mostly build and tested on **ESP32-DEVKITC-32E**
-but there should not be any differences for any **ESP32-WROOM-32** modules.
+## 硬件
+本项目主要在 **ESP32-DEVKITC-32E** 上构建和测试，但对于任何 **ESP32-WROOM-32** 模块应该没有差异。
 
 <p align="center">
-    <img src="doc/images/soucastky_8b.png" alt="Hw components" width="400">
+    <img src="doc/images/soucastky_8b.png" alt="硬件组件" width="400">
 </p>
 
-On the following pictures you can see a battery (Li-Pol accumulator) powered ESP32 DevKitC using following hardware:
-- **ESP32-DEVKITC-32E** (cost 213 CZK/8.2 EUR/9.6 USD)
-- 220mAh Li-Pol 3.7V accumulator (weights ±5g, cost 77 CZK/3 EUR/3.5 USD)
-- MCP1702-3302ET step-down 3.3V voltage regulator (cost 11 CZK/0.42 EUR/0.50 USD)
-- Czech 5-koruna coin for scale (weights 4.8g, diameter 23 mm, cost 0.19 EUR/0.23 USD)
+在下图中，您可以看到一个由电池（锂聚合物电池）供电的 ESP32 DevKitC，使用了以下硬件：
+- **ESP32-DEVKITC-32E**（价格 213 CZK/8.2 EUR/9.6 美元）
+- 220mAh 锂聚合物 3.7V 电池（重约 5g，价格 77 CZK/3 EUR/3.5 美元）
+- MCP1702-3302ET 降压 3.3V 稳压器（价格 11 CZK/0.42 EUR/0.50 美元）
+- 捷克 5 克朗硬币作为比例参照（重 4.8g，直径 23mm，价格 0.19 EUR/0.23 美元）
 <p align="center">
-    <img src="doc/images/mini.jpg" alt="Hw components" width="300">
-    <img src="doc/images/mini2.jpg" alt="Hw components" width="300">
+    <img src="doc/images/mini.jpg" alt="硬件组件" width="300">
+    <img src="doc/images/mini2.jpg" alt="硬件组件" width="300">
 </p>
 
-Altogether (without coin) this setup weights around 17g. This can be further downsized by using smaller Li-Pol accumulator and using ESP32-WROOM-32 modul directly instead of whole dev board.
+总计（不含硬币），此配置重约 17g。通过使用更小的锂聚合物电池和直接使用 ESP32-WROOM-32 模块而非整块开发板，可以进一步减小体积。
 
-This setup cost me around 300 CZK (± 11.50 EUR/13.50 USD). Using the modul directly that costs around 80 CZK (± 3 EUR/3.5 USD) we can get to price of 160 CZK (± 6.5 EUR/7.5 USD) which makes this tool really cheap and available to almost everybody.
+此配置花费约 300 CZK（约 11.50 EUR/13.50 美元）。直接使用模块（约 80 CZK/约 3 EUR/3.5 美元），总成本可降至 160 CZK（约 6.5 EUR/7.5 美元），这使得该工具非常便宜，几乎人人都能负担。
 
-### Power consumption
-Based on experimental measurements, ESP32 consumes around 100mA during attack executions. 
+### 功耗
+根据实验测量，ESP32 在执行攻击时功耗约 100mA。
 
-## Similar projects
+## 类似项目
 * [GANESH-ICMC/esp32-deauther](https://github.com/GANESH-ICMC/esp32-deauther)
 * [SpacehuhnTech/esp8266_deauther](https://github.com/SpacehuhnTech/esp8266_deauther)
 * [justcallmekoko/ESP32Marauder](https://github.com/justcallmekoko/ESP32Marauder)
 * [EParisot/esp32-network-toolbox](https://www.tindie.com/products/klhnikov/esp32-network-toolbox/)
 * [Jeija/esp32free80211](https://github.com/Jeija/esp32free80211)
 
-## Contributing
-Feel free to contribute. Don't hestitate to refactor current code base. Please stick to Doxygen notation when commenting new functions and files. This project is mainly build for educational and demonstration purposes, so verbose documentation is welcome.
+## 贡献
+欢迎贡献代码。请不要犹豫对现有代码库进行重构。在为新函数和文件添加注释时，请遵循 Doxygen 标注规范。本项目主要用于教育和演示目的，因此欢迎详细的文档。
 
-## Disclaimer
-This project demonstrates vulnerabilities of Wi-Fi networks and its underlaying 802.11 standard and how ESP32 platform can be utilised to attack on those vulnerable spots. Use responsibly against networks you have permission to attack on.
+## 免责声明
+本项目展示了 Wi-Fi 网络及其底层 802.11 标准的漏洞，以及如何利用 ESP32 平台攻击这些漏洞点。请负责任地使用，仅对您有权限攻击的网络进行测试。
 
-## License
-Even though this project is licensed under MIT license (see [LICENSE](LICENSE) file for details), don't be shy or greedy and share your work.
+## 许可证
+虽然本项目采用 MIT 许可证授权（详情见 [LICENSE](LICENSE) 文件），但请不要害羞或吝啬，分享您的工作成果。

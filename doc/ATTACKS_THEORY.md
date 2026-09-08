@@ -1,46 +1,46 @@
-# ESP32 Wi-Fi Penetration Tool
+# ESP32 Wi-Fi 渗透测试工具
 
 
-## Handshake capture
-Most common attack on WPA/WPA2-PSK (Personal) is by sniffing handshake frames and cracking PSK (Pre-Shared key, known as network password) from them. During WPA/WPA2 handshake, both sides exchange parameters that are later used to calculate same PTK (Pairwise Transient Key) on both sides. Example WPA/WPA2 handshake is demonstrated in the following picture:
+## 握手捕获
+对 WPA/WPA2-PSK（个人版）最常见的攻击方式是嗅探握手帧并从中破解 PSK（预共享密钥，即网络密码）。在 WPA/WPA2 握手过程中，双方交换参数，这些参数随后用于在双方计算相同的 PTK（成对临时密钥）。WPA/WPA2 握手示例如下图所示：
 
-![WPA handshake sequence diagram](../doc/drawio/wpa-handshake-seq.drawio.svg)
+![WPA 握手时序图](../doc/drawio/wpa-handshake-seq.drawio.svg)
 
-PTK is used for one authenticated session and the communication is being encrypted by it (not really PTK itself, different keys are derived from PTK, but if you have PTK, you can derivate them too). Hence anyone being able to also calculate PTK can also decrypt communication between station (STA) and access point (AP). Besides these publicly transmitted parameters, there is also PMK (Pairwise Master Key) that both sides know in advance and is never transmitted. For WPA/WPA2-PSK (Personal) PMK is equal to PSK, for WPA/WPA2-Enterprise PMK is derived from MSK/AAA key (which is not covered in this writeup). PSK itself can be also split further. The *passphrase* is the actual secret that we have to figure out/crack. This is visualized in the following diagram:
+PTK 用于一次认证会话，通信通过它进行加密（并非直接使用 PTK 本身，而是从 PTK 派生出不同的密钥，但拥有 PTK 即可派生它们）。因此，任何能够计算出 PTK 的人都可以解密站点（STA）与热点（AP）之间的通信。除了这些公开传输的参数外，还有双方事先知晓且从不传输的 PMK（成对主密钥）。对于 WPA/WPA2-PSK（个人版），PMK 等于 PSK；对于 WPA/WPA2-企业版，PMK 从 MSK/AAA 密钥派生（本文不涉及）。PSK 本身还可以进一步拆分。*密码短语*是我们需要破解的实际秘密。如下图所示：
 
-![WPA handshake sequence diagram](../doc/drawio/wpa-keys-hierarchy.drawio.svg)
+![WPA 握手时序图](../doc/drawio/wpa-keys-hierarchy.drawio.svg)
 
-*Blue cells are publicly available values that anyone reading the handshake has access to. The orange ones are the actual secrets.*
+*蓝色单元格是公开可用的值，任何读取握手的人都可以获取。橙色单元格是实际的秘密。*
 
 #### PTK
-- **PMK** - Pairwise Master Key. Both sides knows this value in advance and is never transmitted.
-- **ANonce** - AP randomly generated value
-- **SNonce** - STA randomly generated value
-- **MAC AP + MAC STA** - MAC addresses of AP and STA Wi-Fi network interfaces (NIC)
+- **PMK** - 成对主密钥。双方事先知晓此值且从不传输。
+- **ANonce** - AP 随机生成的值
+- **SNonce** - STA 随机生成的值
+- **MAC AP + MAC STA** - AP 和 STA 的 Wi-Fi 网络接口（NIC）MAC 地址
 
 #### PMK/PSK
-- **Passphrase** - This one is usually known as network password, passphrase, Wi-Fi password etc. This is the actual and only secret part on which whole WPA/WPA2-PSK relies. If we know this, we can calculate PTK and decrypt traffic or simply join the network, if other measures like MAC filtering is not in place.
-- **SSID** - Commonly known as Wi-Fi network name. Thats the human readable (not necessarily) string you get in list of the available networks around.
-- **4096** - This is the number of times the passphrase was hashed. This value is constant by design.
-- **256** - Size of PSK (in bits). This value is also constant by design.
+- **密码短语** - 通常被称为网络密码、口令、Wi-Fi 密码等。这是整个 WPA/WPA2-PSK 所依赖的唯一实际秘密部分。如果我们知道这个，就可以计算 PTK 并解密流量，或者直接加入网络（如果未启用 MAC 过滤等其他措施）。
+- **SSID** - 通常被称为 Wi-Fi 网络名称。即您在周围可用网络列表中看到的那个人类可读（不一定）的字符串。
+- **4096** - 密码短语被哈希的次数。此值在设计上是固定的。
+- **256** - PSK 的大小（位）。此值在设计上也是固定的。
 
-WPA/WPA2 handshake uses EAPoL protocol and its packets of EAPoL-Key type. These packets are encapsulated in 802.11 data frames. See the following frame structure breakdown:
+WPA/WPA2 握手使用 EAPoL 协议及其 EAPoL-Key 类型的数据包。这些数据包封装在 802.11 数据帧中。帧结构分解如下图所示：
 
-![EAPOL-Key frame format and hierarchy](../doc/drawio/eapol-key-frame-format.drawio.svg)
+![EAPOL-Key 帧格式与层次](../doc/drawio/eapol-key-frame-format.drawio.svg)
 
-Simplified WPA/WPA2 handshake exchange can be seen in the sequence diagram at the beginning of this writeup.
+简化的 WPA/WPA2 握手交换可以在本说明开头的时序图中看到。
 
-From the description above, we see that we don't actually need all four messages of WPA/WPA2 handshakes. We just need to capture all parameters and have one whole EAPoL packet with Message Integrity Code (MIC). MIC is calculated by encrypting whole EAPoL packet (with initially zeroed MIC field) using newly calculated PTK. MIC is present from second message (first message form STA). It's appended to the packet later so the counterpart can verify the message was not forged by an attacker. 
+从上面的描述中，我们看到实际上并不需要 WPA/WPA2 握手的全部四条消息。我们只需要捕获所有参数，并拥有一个完整的包含消息完整性校验码（MIC）的 EAPoL 数据包。MIC 通过使用新计算的 PTK 加密整个 EAPoL 数据包（MIC 字段初始清零）来计算。MIC 从第二条消息（来自 STA 的第一条消息）开始出现。它被附加到数据包后面，以便接收方可以验证消息未被攻击者伪造。
 
-![MIC calculation process](../doc/drawio/mic-calculation.drawio.svg)
+![MIC 计算过程](../doc/drawio/mic-calculation.drawio.svg)
 
-This can be used for brute-force attack by guessing the network *passphrase*, calculating PSK and PTK and then encrypting captured EAPoL-Key packet. If the result matches with MIC that was originally present in the EAPoL-Key, we found the correct PTK and passphrase.
+这可用于暴力破解攻击：猜测网络*密码短语*，计算 PSK 和 PTK，然后加密捕获的 EAPoL-Key 数据包。如果结果与原始 EAPoL-Key 中存在的 MIC 匹配，我们就找到了正确的 PTK 和密码短语。
 
-## Deauthentication attack
-One downside of handshake capture is, that you have to actually be around when some handshake with target AP is happening. This makes handshake capture unpredictable. To trigger handshake on demand, this kind of attack is usually preceded by deauthentication attack that disconnects authenticated STAs from AP,. In combination with common wireless device vendors practice that devices automatically try to reconnect themselves if they are disconnected from network without user conscience. 802.11 standard defines a process when AP or STA can send deauthentication frame to its counterpart to inform them that it doesn't will to continue on previously authenticated session. When this happens, STA that wants to continue on communication, it has to authenticate itself again.
+## 解除认证攻击
+握手捕获的一个缺点是，您必须在目标热点发生握手时恰好在附近。这使得握手捕获不可预测。为了按需触发握手，这种攻击通常在之前伴随解除认证攻击，将已认证的 STA 从 AP 断开。结合常见无线设备厂商的做法——设备在断开网络后会自动尝试重新连接（用户无感知）。802.11 标准定义了一个流程：AP 或 STA 可以向对方发送解除认证帧，告知对方不愿继续之前已认证的会话。当此情况发生时，希望继续通信的 STA 必须重新进行认证。
 
-![Deauthenticaion frame format](../doc/drawio/deauth-frame-format.drawio.svg)
+![解除认证帧格式](../doc/drawio/deauth-frame-format.drawio.svg)
 
-## PMKID capture
+## PMKID 捕获
 
-TBD
+待补充

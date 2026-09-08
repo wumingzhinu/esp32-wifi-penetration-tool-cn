@@ -1,0 +1,31 @@
+name: ESP-IDF Build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v4.1
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Build
+        shell: bash
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py build
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v3
+        with:
+          name: esp32-firmware
+          path: |
+            build/esp32-wifi-penetration-tool.bin
+            build/bootloader/bootloader.bin
+            build/partition_table/partition-table.bin

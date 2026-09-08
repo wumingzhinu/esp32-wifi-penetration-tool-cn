@@ -1,43 +1,43 @@
-# ESP32 Wi-Fi Penetration Tool
-## Main component
+# ESP32 Wi-Fi 渗透测试工具
+## Main（主组件）
 
-This component the main component (also called pseudo-component). It contains attacks implementations themselves and attack wrapper framework.
+本组件是主组件（也称为伪组件）。它包含攻击实现本身以及攻击包装框架。
 
-Theory behind following attacks implementations is in [/doc/ATTACK_THEORY.md](../doc/ATTACKS_THEORY.md).
+以下攻击实现背后的原理位于 [/doc/ATTACK_THEORY.md](../doc/ATTACKS_THEORY.md)。
 
-### Deauth broadcast
-One way to send deauthentication frames is by bypassing Wi-Fi Stack Libaries that block them from being send. For this purpose [WSL Bypasser](../components/wsl_bypasser) component is being used. For further detail about how the bypass works, see README for WSL Bypasser component.
+### 广播解除认证
+发送解除认证帧的一种方式是绕过阻止其发送的 Wi-Fi 协议栈库。为此使用 [WSL Bypasser](../components/wsl_bypasser) 组件。有关绕过原理的更多细节，请参见 WSL Bypasser 组件的 README。
 
-Deauthentication frame is built with broadcast destination MAC address (ff:ff:ff:ff:ff:ff), source MAC address and BSSID of target AP.
+解除认证帧以广播目标 MAC 地址（ff:ff:ff:ff:ff:ff）、源 MAC 地址和目标 AP 的 BSSID 构建。
 
-#### Pros
-- There doesn't have to be an active communication in progress. Devices will receive this frame even if they are not actively communicating.
+#### 优点
+- 不需要存在正在进行的活跃通信。即使设备未 actively 通信，也能收到此帧。
 
-#### Cons
-- Some devices are ignoring broadcast deauthentication frames as stated in [Aircrack-ng documentation](https://www.aircrack-ng.org/doku.php?id=deauthentication#why_does_deauthentication_not_work).
-    > Some clients ignore broadcast deauthentications. If this is the case, you will need to send a deauthentication directed at the particular client.
+#### 缺点
+- 一些设备忽略广播解除认证帧，如 [Aircrack-ng 文档](https://www.aircrack-ng.org/doku.php?id=deauthentication#why_does_deauthentication_not_work)所述：
+    > 一些客户端忽略广播解除认证帧。如果是这种情况，您需要向特定客户端发送定向解除认证帧。
 
-### Rogue AP
-Another option is to start rogue duplicated AP. This way Wi-Fi Stack Libraries stay untouched and only ESP-IDF API is used for this. Taking in consideration that it's possible to set any valid MAC address to AP interface, we can create duplicated AP by setting same MAC as the genuine AP has by `esp_wifi_set_mac`. 
-We know all necessary values from the AP scanner and have them in `wifi_ap_record_t` structure. From there we can just pass the information to `wifi_config_t` and configure AP by `esp_wifi_set_config`. Once this AP is started, whenever it receives Class 2 or 3 frame from any STA, it will respond with deauthentication frame. This behaviour is defined directly in 802.11 standard. STA has no way to verify whether the frame is from genuine AP or rogue one and in defensive manner deauthneticates itself from the network.  
-This is demonstrated in the following sequence diagram: 
+### 伪造热点
+另一种选择是启动伪造的重复热点。这样 Wi-Fi 协议栈库保持不变，仅使用 ESP-IDF API。考虑到可以为热点接口设置任何有效的 MAC 地址，我们可以通过 `esp_wifi_set_mac` 设置与真实热点相同的 MAC 来创建重复热点。
+我们从 AP 扫描器获知所有必要的值，并将它们保存在 `wifi_ap_record_t` 结构中。从中我们可以将信息传递给 `wifi_config_t` 并通过 `esp_wifi_set_config` 配置热点。一旦此热点启动，只要它收到来自任何 STA 的 Class 2 或 3 帧，就会回复解除认证帧。此行为直接由 802.11 标准定义。STA 无法验证帧是来自真实热点还是伪造热点，出于防御目的会自行解除认证。
+此过程如下图时序图所示：
 
-![Rogue AP sequence diagram](../doc/drawio/rogueap-seq.drawio.svg)
-
-
-#### Pros
-- Deauthentication frames are directed to the STA that sent some frame to AP.
-
-#### Cons
-- This apporach requires active communication to be happening.
-- It may confuse STA completely so it will not be able to authenticate again, or it may try to authenticate with rogue AP instead of the genuine one. (can be fixed by turning duplicated AP on and off giving STA some time to reconnect)
+![伪造热点时序图](../doc/drawio/rogueap-seq.drawio.svg)
 
 
-### PMKID capture
-To capture PMKID from AP the only thing we have to do is to initiate connection and get first handshake message from AP. If PMKID is available, AP will send it as part of the first handshake message, so it doesn't matter we don't know the credentials.
+#### 优点
+- 解除认证帧定向发送给向 AP 发送了某帧的 STA。
 
-### Denial of Service 
-This reuses deauthentication methods from above and just skips handshake capture. It also allows combination of all deauth methods, which makes it more robust against different behaviour of various devices.
+#### 缺点
+- 此方法需要存在活跃通信。
+- 它可能完全使 STA 困惑，导致其无法再次认证，或者可能尝试向伪造热点而非真实热点进行认证。（可通过反复开启和关闭重复热点，给 STA 一些重连时间来解决）
 
-## Reference
-Doxygen API reference available
+
+### PMKID 捕获
+要从 AP 捕获 PMKID，我们只需发起连接并从 AP 获取第一条握手消息。如果 PMKID 可用，AP 会将其作为第一条握手消息的一部分发送，因此我们不知道凭据也没关系。
+
+### 拒绝服务
+此方式复用上述解除认证方法，仅跳过握手捕获。它还允许组合所有解除认证方法，使其对各种设备的不同行为更加稳健。
+
+## 参考
+Doxygen API 参考可用
