@@ -35,6 +35,7 @@ jobs:
       - name: Build for ESP32-C3
         run: |
           . ~/esp/esp-idf-v4.4/export.sh
+          rm -rf build
           idf.py set-target esp32c3
           idf.py build
 
