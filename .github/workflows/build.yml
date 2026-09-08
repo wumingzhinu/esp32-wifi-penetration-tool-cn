@@ -15,11 +15,23 @@ jobs:
         with:
           submodules: recursive
 
-      - name: ESP-IDF Build
-        uses: espressif/esp-idf-ci-action@v1
-        with:
-          esp_idf_version: v4.1
-          target: esp32
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git wget flex bison gperf python3 python3-pip python3-venv cmake ninja-build ccache libffi-dev libssl-dev dfu-util libusb-1.0-0
+
+      - name: Install ESP-IDF v4.1
+        run: |
+          mkdir -p ~/esp
+          cd ~/esp
+          git clone -b v4.1 --recursive https://github.com/espressif/esp-idf.git esp-idf-v4.1
+          cd esp-idf-v4.1
+          ./install.sh
+
+      - name: Build
+        run: |
+          . ~/esp/esp-idf-v4.1/export.sh
+          idf.py build
 
       - name: Upload firmware
         uses: actions/upload-artifact@v3
