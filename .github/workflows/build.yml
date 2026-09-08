@@ -15,6 +15,11 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -26,6 +31,7 @@ jobs:
           cd ~/esp
           git clone -b v4.1 --recursive https://github.com/espressif/esp-idf.git esp-idf-v4.1
           cd esp-idf-v4.1
+          pip install setuptools
           ./install.sh
 
       - name: Build
