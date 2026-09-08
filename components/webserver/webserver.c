@@ -19,6 +19,7 @@
 #include "esp_wifi_types.h"
 
 #include "wifi_controller.h"
+#include "client_counter.h"
 #include "attack.h"
 #include "pcap_serializer.h"
 #include "hccapx_serializer.h"
@@ -88,8 +89,8 @@ static esp_err_t uri_ap_list_get_handler(httpd_req_t *req) {
     const wifictl_ap_records_t *ap_records;
     ap_records = wifictl_get_ap_records();
 
-    // 33 SSID + 6 BSSID + 1 RSSI + 1 信道 + 1 加密方式
-    char resp_chunk[42];
+    // 33 SSID + 6 BSSID + 1 RSSI + 1 信道 + 1 加密方式 + 1 客户端数
+    char resp_chunk[43];
 
     ESP_ERROR_CHECK(httpd_resp_set_type(req, HTTPD_TYPE_OCTET));
     for(unsigned i = 0; i < ap_records->count; i++){
@@ -98,7 +99,9 @@ static esp_err_t uri_ap_list_get_handler(httpd_req_t *req) {
         memcpy(&resp_chunk[39], &ap_records->records[i].rssi, 1);
         memcpy(&resp_chunk[40], &ap_records->records[i].primary, 1);
         memcpy(&resp_chunk[41], &ap_records->records[i].authmode, 1);
-        ESP_ERROR_CHECK(httpd_resp_send_chunk(req, resp_chunk, 42));
+        uint8_t client_count = wifictl_get_client_count(ap_records->records[i].bssid);
+        memcpy(&resp_chunk[42], &client_count, 1);
+        ESP_ERROR_CHECK(httpd_resp_send_chunk(req, resp_chunk, 43));
     }
     return httpd_resp_send_chunk(req, resp_chunk, 0);
 }
@@ -107,6 +110,25 @@ static httpd_uri_t uri_ap_list_get = {
     .uri = "/ap-list",
     .method = HTTP_GET,
     .handler = uri_ap_list_get_handler,
+    .user_ctx = NULL
+};
+//@}
+
+/**
+ * @brief Handlers for \c /count-clients endpoint
+ *
+ * 触发后台客户端统计任务。会先断开管理热点，完成后自动恢复。
+ * 统计结果写入内部缓存，下次 /ap-list 即可取到 CLIENT 列。
+ */
+static esp_err_t uri_count_clients_post_handler(httpd_req_t *req) {
+    wifictl_start_client_counting();
+    return httpd_resp_send(req, NULL, 0);
+}
+
+static httpd_uri_t uri_count_clients_post = {
+    .uri = "/count-clients",
+    .method = HTTP_POST,
+    .handler = uri_count_clients_post_handler,
     .user_ctx = NULL
 };
 //@}
@@ -224,6 +246,7 @@ void webserver_run(){
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &uri_root_get));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &uri_reset_head));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &uri_ap_list_get));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(server, &uri_count_clients_post));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &uri_run_attack_post));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &uri_status_get));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &uri_capture_pcap_get));

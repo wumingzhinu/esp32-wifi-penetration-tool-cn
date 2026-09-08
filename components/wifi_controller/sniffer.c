@@ -61,10 +61,10 @@ void wifictl_sniffer_filter_frame_types(bool data, bool mgmt, bool ctrl) {
     if(data) {
         filter.filter_mask |= WIFI_PROMIS_FILTER_MASK_DATA;
     }
-    else if(mgmt) {
+    if(mgmt) {
         filter.filter_mask |= WIFI_PROMIS_FILTER_MASK_MGMT;
     }
-    else if(ctrl) {
+    if(ctrl) {
         filter.filter_mask |= WIFI_PROMIS_FILTER_MASK_CTRL;
     }
     esp_wifi_set_promiscuous_filter(&filter);

@@ -34,6 +34,8 @@
                 <table id="ap-list"></table>
                 <p>
                     <button type="button" onClick="refreshAps()">刷新</button>
+                    <button type="button" onClick="countClients()">探测客户端</button>
+                    <span id="count-status"></span>
                 </p>
             </fieldset>
             <fieldset>
@@ -194,22 +196,30 @@
         if(rssi >= -75) return "#dd9900";
         return "#cc0000";
     }
+    // 触发客户端统计：会先断开管理热点，完成后自动恢复，需重新连接再刷新列表
+    function countClients() {
+        document.getElementById("count-status").innerHTML = "统计中…会先断开连接，约 20 秒后请重新连接并点刷新";
+        var oReq = new XMLHttpRequest();
+        oReq.open("POST", "http://192.168.4.1/count-clients", true);
+        oReq.send();
+    }
     function refreshAps() {
         document.getElementById("ap-list").innerHTML = "加载中（可能需要一些时间）...";
         var oReq = new XMLHttpRequest();
         oReq.onload = function() {
-            document.getElementById("ap-list").innerHTML = "<th>ESSID</th><th>CH</th><th>ENCR</th><th>PWR</th><th>BSSID</th>";
+            document.getElementById("ap-list").innerHTML = "<th>ESSID</th><th>CH</th><th>ENCR</th><th>PWR</th><th>CLIENT</th><th>BSSID</th>";
             var arrayBuffer = oReq.response;
             if(arrayBuffer) {
                 var byteArray = new Uint8Array(arrayBuffer);
-                for  (let i = 0; i < byteArray.byteLength; i = i + 42) {
+                for  (let i = 0; i < byteArray.byteLength; i = i + 43) {
                     var tr = document.createElement('tr');
-                    tr.setAttribute("id", Math.floor(i / 42));
+                    tr.setAttribute("id", Math.floor(i / 43));
                     tr.setAttribute("onClick", "selectAp(this)");
                     var td_ssid = document.createElement('td');
                     var td_ch = document.createElement('td');
                     var td_encr = document.createElement('td');
                     var td_rssi = document.createElement('td');
+                    var td_clients = document.createElement('td');
                     var td_bssid = document.createElement('td');
                     var ssidText = new TextDecoder("utf-8").decode(byteArray.subarray(i + 0, i + 32));
                     td_ssid.style.textAlign = "left";
@@ -219,6 +229,8 @@
                     var rssi = signedByte(byteArray[i + 39]);
                     td_rssi.style.color = rssiColor(rssi);
                     td_rssi.innerHTML = rssi + " dBm";
+                    var clients = byteArray[i + 42];
+                    td_clients.innerHTML = clients;
                     for(let j = 0; j < 6; j++){
                         td_bssid.innerHTML += uint8ToHex(byteArray[i + 33 + j]) + ":";
                     }
@@ -228,6 +240,7 @@
                     tr.appendChild(td_ch);
                     tr.appendChild(td_encr);
                     tr.appendChild(td_rssi);
+                    tr.appendChild(td_clients);
                     tr.appendChild(td_bssid);
                     document.getElementById("ap-list").appendChild(tr);
                 }
