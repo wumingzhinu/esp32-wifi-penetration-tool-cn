@@ -2,9 +2,10 @@ name: ESP-IDF Build
 
 on:
   push:
-    branches: [master]
+    branches: [cn-localization, master]
   pull_request:
-    branches: [master]
+    branches: [cn-localization, master]
+  workflow_dispatch:
 
 jobs:
   build:
