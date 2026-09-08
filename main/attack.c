@@ -157,6 +157,27 @@ static void attack_request_handler(void *args, esp_event_base_t event_base, int3
  */
 static void attack_reset_handler(void *args, esp_event_base_t event_base, int32_t event_id, void *event_data) {
     ESP_LOGD(TAG, "Resetting attack status...");
+
+    /* 如果攻击正在运行，先停止它 */
+    if(attack_status.state == RUNNING) {
+        switch(attack_status.type) {
+            case ATTACK_TYPE_PMKID:
+                ESP_LOGI(TAG, "Aborting PMKID attack on reset...");
+                attack_pmkid_stop();
+                break;
+            case ATTACK_TYPE_HANDSHAKE:
+                ESP_LOGI(TAG, "Aborting HANDSHAKE attack on reset...");
+                attack_handshake_stop();
+                break;
+            case ATTACK_TYPE_DOS:
+                ESP_LOGI(TAG, "Aborting DOS attack on reset...");
+                attack_dos_stop();
+                break;
+            default:
+                break;
+        }
+    }
+
     if(attack_status.content){
         free(attack_status.content);
         attack_status.content = NULL;

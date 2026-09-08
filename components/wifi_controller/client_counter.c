@@ -110,9 +110,16 @@ static void counting_task(void *arg){
         wifictl_sniffer_stop();
     }
 
-    // 恢复管理热点（先切回配置的信道，原攻击代码漏了这一步）
+    // 恢复管理热点（先切回配置的信道）
     wifictl_set_channel(CONFIG_MGMT_AP_CHANNEL);
     wifictl_mgmt_ap_start();
+
+    /* 取注册的帧回调，避免后续攻击期间无意义运行 */
+    if (handler_registered) {
+        esp_event_handler_unregister(SNIFFER_EVENTS, ESP_EVENT_ANY_ID, &on_frame);
+        handler_registered = false;
+    }
+
     ESP_LOGI(TAG, "客户端统计完成");
     vTaskDelete(NULL);
 }

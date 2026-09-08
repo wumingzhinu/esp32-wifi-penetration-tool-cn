@@ -1,393 +1,397 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>ESP32 管理热点</title>
+    <title>ESP32 Wi-Fi 渗透测试工具</title>
     <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
         body {
-            width: fit-content;
+            font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #0d1117; color: #c9d1d9;
+            min-height: 100vh; padding: 24px 16px;
         }
-        table, tr, th {
-            border: 1px solid;
-            border-collapse: collapse;
-            text-align: center;
+        h1 { font-size: 1.5em; color: #58a6ff; margin-bottom: 16px; }
+        h2 { font-size: 1.1em; color: #8b949e; margin-bottom: 12px; }
+
+        /* 卡片 */
+        .card {
+            background: #161b22; border: 1px solid #30363d;
+            border-radius: 8px; padding: 20px; margin-bottom: 16px;
         }
-        th, td {
-            padding:10px;
+
+        /* 表格 */
+        table { width: 100%; border-collapse: collapse; font-size: 0.88em; }
+        th {
+            background: #1f2937; color: #8b949e; font-weight: 600;
+            padding: 10px 12px; text-align: center;
+            border-bottom: 2px solid #30363d; white-space: nowrap;
         }
-        tr:hover, tr.selected {
-            background-color: lightblue;
-            cursor:pointer;
+        td {
+            padding: 8px 12px; text-align: center;
+            border-bottom: 1px solid #21262d;
+        }
+        tr { transition: background .15s; cursor: pointer; }
+        tr:hover { background: #1c2533; }
+        tr.selected { background: #1a3a5c !important; outline: 2px solid #58a6ff; }
+        td.ssid { text-align: left; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        td.bssid { text-align: left; font-family: "SF Mono", "Fira Code", monospace; font-size: 0.9em; color: #8b949e; }
+        td.rssi { font-weight: 600; }
+
+        /* 按钮 */
+        button, .btn {
+            background: #238636; color: #fff; border: none;
+            padding: 8px 16px; border-radius: 6px; cursor: pointer;
+            font-size: 0.9em; font-weight: 500; transition: background .15s;
+        }
+        button:hover { background: #2ea043; }
+        button:disabled { background: #21262d; color: #484f58; cursor: not-allowed; }
+        button.secondary { background: #30363d; }
+        button.secondary:hover { background: #3d444d; }
+        button.danger { background: #da3633; }
+        button.danger:hover { background: #f85149; }
+
+        /* 表单 */
+        select, input[type=number] {
+            background: #0d1117; color: #c9d1d9; border: 1px solid #30363d;
+            padding: 8px 12px; border-radius: 6px; font-size: 0.9em;
+            width: 100%; max-width: 320px;
+        }
+        select:focus, input:focus { outline: none; border-color: #58a6ff; }
+        label { display: block; color: #8b949e; margin-bottom: 6px; font-size: 0.88em; }
+        .form-row { margin-bottom: 14px; }
+
+        /* 状态 */
+        .status-bar {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 16px; border-radius: 6px; margin-bottom: 16px;
+            font-size: 0.92em;
+        }
+        .status-bar.info { background: #1a3a5c; color: #58a6ff; }
+        .status-bar.warn { background: #3d2e00; color: #d29922; }
+        .status-bar.error { background: #3d1414; color: #f85149; }
+        .status-bar.ok { background: #1a3d2e; color: #3fb950; }
+
+        /* 进度 */
+        .progress { font-family: monospace; font-size: 0.95em; color: #58a6ff; }
+
+        /* 结果 */
+        .result-section pre {
+            background: #0d1117; border: 1px solid #30363d;
+            border-radius: 6px; padding: 12px; overflow-x: auto;
+            font-size: 0.82em; color: #c9d1d9; margin: 8px 0;
+        }
+        .result-section a {
+            color: #58a6ff; text-decoration: none;
+        }
+        .result-section a:hover { text-decoration: underline; }
+
+        /* 隐藏 */
+        .hidden { display: none !important; }
+
+        /* 响应式 */
+        @media (max-width: 600px) {
+            body { padding: 12px 8px; }
+            .card { padding: 14px; }
+            th, td { padding: 6px 8px; font-size: 0.82em; }
         }
     </style>
 </head>
-<body onLoad="getStatus()">
+<body>
     <h1>ESP32 Wi-Fi 渗透测试工具</h1>
-    <section id="errors"></section>
-    <section id="loading">加载中... 请稍候</section>
-    <section id="ready" style="display: none;">
-        <h2>攻击配置</h2>
-        <form onSubmit="runAttack(); return false;">
-            <fieldset>
-                <legend>选择目标</legend>
-                <table id="ap-list"></table>
-                <p>
-                    <button type="button" onClick="refreshAps()">刷新</button>
-                    <button type="button" onClick="countClients()">探测客户端</button>
-                    <span id="count-status"></span>
-                </p>
-            </fieldset>
-            <fieldset>
-                <legend>攻击配置</legend>
-                <p>
-                    <label for="attack_type">攻击类型:</label>
-                    <select id="attack_type" onChange="updateConfigurableFields(this)" required>
-                        <option value="0" title="此类型尚未实现。" disabled>ATTACK_TYPE_PASSIVE（被动攻击）</option>
-                        <option value="1">ATTACK_TYPE_HANDSHAKE（握手捕获）</option>
-                        <option value="2" selected>ATTACK_TYPE_PMKID（PMKID 捕获）</option>
-                        <option value="3">ATTACK_TYPE_DOS（拒绝服务）</option>
+
+    <div id="msg" class="status-bar info hidden"></div>
+
+    <!-- 攻击配置 -->
+    <section id="sec-ready" class="hidden">
+        <div class="card">
+            <h2>选择目标</h2>
+            <table id="ap-table">
+                <thead>
+                    <tr>
+                        <th>ESSID</th><th>CH</th><th>ENCR</th>
+                        <th>PWR</th><th>CLIENT</th><th>BSSID</th>
+                    </tr>
+                </thead>
+                <tbody id="ap-list"></tbody>
+            </table>
+            <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="secondary" onclick="refreshAps()">刷新</button>
+                <button class="secondary" onclick="countClients()">探测客户端</button>
+                <span id="count-status" style="color:#8b949e; font-size:0.85em; align-self:center;"></span>
+            </div>
+        </div>
+        <div class="card">
+            <h2>攻击配置</h2>
+            <form onsubmit="runAttack(); return false;">
+                <div class="form-row">
+                    <label for="sel-type">攻击类型</label>
+                    <select id="sel-type" onchange="onTypeChange(this)" required>
+                        <option value="1">握手捕获 (HANDSHAKE)</option>
+                        <option value="2">PMKID 捕获 (PMKID)</option>
+                        <option value="3">拒绝服务 (DOS)</option>
                     </select>
-                </p>
-                <p>
-                    <label for="attack_method">攻击方式:</label>
-                    <select id="attack_method" required disabled>
-                        <option value="" selected disabled hidden>不可用</option>
+                </div>
+                <div class="form-row">
+                    <label for="sel-method">攻击方式</label>
+                    <select id="sel-method" required>
+                        <option value="" disabled hidden>请先选择攻击类型</option>
                     </select>
-                </p>
-                <p>
-                    <label for="attack_timeout">攻击超时时间（秒）:</label>
-                    <input type="number" min="0" max="255" id="attack_timeout" value="" required/>
-                </p>
-                <p>
-                    <button>开始攻击</button>
-                </p>
-            </fieldset>
-        </form>
+                </div>
+                <div class="form-row">
+                    <label for="inp-timeout">超时时间（秒）</label>
+                    <input type="number" min="1" max="255" id="inp-timeout" value="60" required/>
+                </div>
+                <button type="submit">开始攻击</button>
+            </form>
+        </div>
     </section>
-    <section id="running" style="display: none;">
-        攻击运行中，已用时间: <span id="running-progress"></span>
-        <div style="color:#cc6600;">⚠ 抓包/嗅探期间会断开连接，请稍后重新连接管理热点查看结果</div>
+
+    <!-- 攻击运行中 -->
+    <section id="sec-running" class="hidden">
+        <div class="card">
+            <div class="status-bar warn">
+                <span>攻击运行中...</span>
+                <span class="progress" id="progress"></span>
+            </div>
+            <p style="color:#d29922; font-size:0.88em; margin-top:8px;">
+                ⚠ 嗅探期间会断开连接，请稍后重新连接管理热点查看结果
+            </p>
+        </div>
     </section>
-    <section id="result" style="display: none;">
-        <div id="result-meta">正在加载结果.. 请稍候</div>
-        <div id="result-content"></div>
-        <button type="button" onClick="resetAttack()">新建攻击</button>
+
+    <!-- 结果 -->
+    <section id="sec-result" class="hidden">
+        <div class="card result-section">
+            <div id="result-meta"></div>
+            <div id="result-content"></div>
+            <div style="margin-top:16px;">
+                <button class="secondary" onclick="resetAttack()">新建攻击</button>
+            </div>
+        </div>
     </section>
-    <script>
-    var AttackStateEnum = { READY: 0, RUNNING: 1, FINISHED: 2, TIMEOUT: 3};
-    var AttackTypeEnum = { ATTACK_TYPE_PASSIVE: 0, ATTACK_TYPE_HANDSHAKE: 1, ATTACK_TYPE_PMKID: 2, ATTACK_TYPE_DOS: 3};
-    var selectedApElement = -1;
-    var poll;
-    var poll_interval = 1000;
-    var running_poll;
-    var running_poll_interval = 1000;
-    var attack_timeout = 0;
-    var time_elapsed = 0;
-    var defaultResultContent = document.getElementById("result").innerHTML;
-    var defaultAttackMethods = document.getElementById("attack_method").outerHTML;
-    function getStatus() {
-        var oReq = new XMLHttpRequest();
-        oReq.onload = function() {
-            var arrayBuffer = oReq.response;
-            if(arrayBuffer) {
-                var attack_state = parseInt(new Uint8Array(arrayBuffer, 0, 1));
-                var attack_type = parseInt(new Uint8Array(arrayBuffer, 1, 1));
-                var attack_content_size = parseInt(new Uint16Array(arrayBuffer, 2, 1));
-                var attack_content = new Uint8Array(arrayBuffer, 4);
-                console.log("attack_state=" + attack_state + "; attack_type=" + attack_type + "; attack_count_size=" + attack_content_size);
-                var status = "错误：无法解析攻击状态。";
-                hideAllSections();
-                switch(attack_state) {
-                    case AttackStateEnum.READY:
-                        showAttackConfig();
-                        break;
-                    case AttackStateEnum.RUNNING:
-                        showRunning();
-                        console.log("Poll");
-                        setTimeout(getStatus, poll_interval);
-                        break;
-                    case AttackStateEnum.FINISHED:
-                        showResult("已完成", attack_type, attack_content_size, attack_content);
-                        break;
-                    case AttackStateEnum.TIMEOUT:
-                        showResult("已超时", attack_type, attack_content_size, attack_content);
-                        break;
-                    default:
-                        document.getElementById("errors").innerHTML = "加载攻击状态失败！未知状态。";
-                }
+
+<script>
+/* ── 状态 ──────────────────────────────────────── */
+var S = {
+    READY:0, RUNNING:1, FINISHED:2, TIMEOUT:3
+};
+var selectedAp = -1;
+var pollTimer = null;
+var runTimer = null;
+var timeout = 60;
+var elapsed = 0;
+var apCount = 0;
+
+/* ── 工具函数 ──────────────────────────────────── */
+function show(id){ document.getElementById(id).classList.remove('hidden'); }
+function hide(id){ document.getElementById(id).classList.add('hidden'); }
+function hideAll(){ ['sec-ready','sec-running','sec-result'].forEach(hide); }
+function msg(txt, type){
+    var el = document.getElementById('msg');
+    el.textContent = txt;
+    el.className = 'status-bar ' + (type||'info');
+    el.classList.remove('hidden');
+}
+function hideMsg(){ document.getElementById('msg').classList.add('hidden'); }
+
+/* ── AJAX ──────────────────────────────────────── */
+function ajax(method, url, body, cb){
+    var x = new XMLHttpRequest();
+    x.open(method, url, true);
+    x.responseType = (body === undefined) ? 'arraybuffer' : '';
+    x.onload = function(){ cb(x); };
+    x.onerror = function(){ msg('无法连接到 ESP32，请检查是否已连接管理热点。','error'); };
+    x.send(body);
+}
+
+/* ── 状态轮询 ──────────────────────────────────── */
+function getStatus(){
+    ajax('GET', 'http://192.168.4.1/status', undefined, function(x){
+        var buf = new Uint8Array(x.response);
+        var state = buf[0];
+        var type  = buf[1];
+        var csize = new Uint16Array(x.response, 2, 1)[0];
+        var cdata = new Uint8Array(x.response, 4);
+
+        hideAll(); hideMsg();
+        switch(state){
+            case S.READY:
+                show('sec-ready');
+                refreshAps();
+                break;
+            case S.RUNNING:
+                show('sec-running');
+                pollTimer = setTimeout(getStatus, 1000);
+                break;
+            case S.FINISHED:
+                showResult('已完成', type, cdata, csize);
+                break;
+            case S.TIMEOUT:
+                showResult('已超时', type, cdata, csize);
+                break;
+            default:
+                msg('未知状态','error');
+        }
+    });
+}
+
+/* ── AP 列表（JSON） ────────────────────────────── */
+function refreshAps(){
+    document.getElementById('ap-list').innerHTML =
+        '<tr><td colspan="6" style="color:#8b949e;">扫描中…</td></tr>';
+    ajax('GET', 'http://192.168.4.1/ap-list', undefined, function(x){
+        var list = JSON.parse(new TextDecoder().decode(new Uint8Array(x.response)));
+        var tbody = document.getElementById('ap-list');
+        tbody.innerHTML = '';
+        apCount = list.length;
+        list.forEach(function(ap){
+            var tr = document.createElement('tr');
+            tr.dataset.id = ap.id;
+            tr.onclick = function(){ selectAp(tr); };
+
+            var rssiColor = ap.rssi >= -60 ? '#3fb950' : ap.rssi >= -75 ? '#d29922' : '#f85149';
+
+            tr.innerHTML =
+                '<td class="ssid">' + (ap.ssid || '(隐藏)') + '</td>' +
+                '<td>' + ap.ch + '</td>' +
+                '<td>' + ap.encr + '</td>' +
+                '<td class="rssi" style="color:' + rssiColor + '">' + ap.rssi + '</td>' +
+                '<td>' + ap.clients + '</td>' +
+                '<td class="bssid">' + ap.bssid + '</td>';
+            tbody.appendChild(tr);
+        });
+    });
+}
+
+function selectAp(tr){
+    var prev = document.querySelector('#ap-list tr.selected');
+    if(prev) prev.classList.remove('selected');
+    tr.classList.add('selected');
+    selectedAp = parseInt(tr.dataset.id);
+}
+
+/* ── 攻击方式动态加载（JSON） ──────────────────── */
+function onTypeChange(el){
+    var type = parseInt(el.value);
+    ajax('GET', 'http://192.168.4.1/attack-config?type=' + type, undefined, function(x){
+        var cfg = JSON.parse(new TextDecoder().decode(new Uint8Array(x.response)));
+        var sel = document.getElementById('sel-method');
+        sel.innerHTML = '';
+        if(cfg.methods && cfg.methods.length){
+            cfg.methods.forEach(function(m){
+                var opt = document.createElement('option');
+                opt.value = m.v;
+                opt.textContent = m.l;
+                sel.appendChild(opt);
+            });
+            sel.disabled = false;
+        } else {
+            var opt = document.createElement('option');
+            opt.value = 0;
+            opt.textContent = '(此类型无需选择方式)';
+            opt.disabled = true;
+            sel.appendChild(opt);
+            sel.disabled = true;
+        }
+        document.getElementById('inp-timeout').value = cfg.default_timeout;
+    });
+}
+
+/* ── 客户端探测 ────────────────────────────────── */
+function countClients(){
+    document.getElementById('count-status').textContent = '统计中…会断开连接，请稍后重新连接并刷新';
+    ajax('POST', 'http://192.168.4.1/count-clients', '', function(){});
+}
+
+/* ── 发起攻击 ──────────────────────────────────── */
+function runAttack(){
+    if(selectedAp === -1){
+        msg('请先选择一个目标热点','error');
+        return;
+    }
+    hideAll(); show('sec-running');
+    elapsed = 0;
+    timeout = parseInt(document.getElementById('inp-timeout').value) || 60;
+    document.getElementById('progress').textContent = '0/' + timeout + ' 秒';
+    runTimer = setInterval(function(){
+        elapsed++;
+        document.getElementById('progress').textContent = elapsed + '/' + timeout + ' 秒';
+        if(elapsed >= timeout){
+            clearInterval(runTimer);
+            msg('请重新连接管理热点查看结果','warn');
+        }
+    }, 1000);
+
+    var buf = new Uint8Array(4);
+    buf[0] = selectedAp;
+    buf[1] = parseInt(document.getElementById('sel-type').value);
+    buf[2] = parseInt(document.getElementById('sel-method').value) || 0;
+    buf[3] = timeout;
+    ajax('POST', 'http://192.168.4.1/run-attack', buf.buffer, function(){});
+    setTimeout(getStatus, 500);
+}
+
+/* ── 显示结果 ──────────────────────────────────── */
+function showResult(label, type, data, size){
+    hideAll(); hideMsg();
+    clearInterval(pollTimer); clearInterval(runTimer);
+    show('sec-result');
+    var meta = document.getElementById('result-meta');
+    var cont = document.getElementById('result-content');
+    meta.innerHTML = '<div class="status-bar ' + (label==='已完成'?'ok':'warn') + '">' + label + '</div>';
+
+    var types = ['被动攻击','握手捕获','PMKID 捕获','拒绝服务'];
+    meta.innerHTML += '<p style="color:#8b949e;margin:8px 0">类型: ' + (types[type]||'未知') + '</p>';
+    cont.innerHTML = '';
+
+    if(type === 1 && size > 0){
+        /* 握手结果：提供下载链接 */
+        cont.innerHTML =
+            '<p><a href="capture.pcap">下载 PCAP 文件</a></p>' +
+            '<p><a href="capture.hccapx">下载 HCCAPX 文件</a></p>';
+        var hex = '';
+        for(var i = 0; i < size; i++){
+            hex += ('0' + data[i].toString(16)).slice(-2);
+            if(i % 50 === 49) hex += '\n';
+        }
+        cont.innerHTML += '<pre><code>' + hex + '</code></pre>';
+    }
+    else if(type === 2){
+        /* PMKID：从后端获取格式化 JSON */
+        ajax('GET', 'http://192.168.4.1/pmkid-result', undefined, function(x){
+            var r = JSON.parse(new TextDecoder().decode(new Uint8Array(x.response)));
+            if(r.error){
+                cont.innerHTML = '<p style="color:#f85149">' + r.error + '</p>';
                 return;
-                
             }
-        };
-        oReq.onerror = function() {
-            console.log("Request error");
-            document.getElementById("errors").innerHTML = "无法连接到 ESP32。请检查是否已连接到管理热点。在攻击过程中您可能会被断开连接。";
-            getStatus();
-        };
-        oReq.ontimeout = function() {
-            console.log("Request timeout");
-            getStatus();  
-        };
-        oReq.open("GET", "http://192.168.4.1/status", true);
-        oReq.responseType = "arraybuffer";
-        oReq.send();
-    }
-    function hideAllSections(){
-        for(let section of document.getElementsByTagName("section")){
-            section.style.display = "none";
-        };
-    }
-    function showRunning(){
-        hideAllSections();
-        document.getElementById("running").style.display = "block";
-    }
-    function countProgress(){
-        if(time_elapsed >= attack_timeout){
-            document.getElementById("errors").innerHTML = "请重新连接到管理热点";
-            document.getElementById("errors").style.display = "block";
-            clearInterval(running_poll);
-        }
-        document.getElementById("running-progress").innerHTML = time_elapsed + "/" + attack_timeout + "秒";
-        time_elapsed++;
-    }
-    function showAttackConfig(){
-        document.getElementById("ready").style.display = "block";
-        refreshAps();
-    }
-    function showResult(status, attack_type, attack_content_size, attack_content){
-        hideAllSections();
-        clearInterval(poll);
-        document.getElementById("result").innerHTML = defaultResultContent;
-        document.getElementById("result").style.display = "block";
-        document.getElementById("result-meta").innerHTML = status + "<br>";
-        type = "错误：无法解析攻击类型。";
-        switch(attack_type) {
-            case AttackTypeEnum.ATTACK_TYPE_PASSIVE:
-                type = "ATTACK_TYPE_PASSIVE（被动攻击）";
-                break;
-            case AttackTypeEnum.ATTACK_TYPE_HANDSHAKE:
-                type = "ATTACK_TYPE_HANDSHAKE（握手捕获）";
-                resultHandshake(attack_content, attack_content_size);
-                break;
-            case AttackTypeEnum.ATTACK_TYPE_PMKID:
-                type = "ATTACK_TYPE_PMKID（PMKID 捕获）";
-                resultPmkid(attack_content, attack_content_size);
-                break;
-            case AttackTypeEnum.ATTACK_TYPE_DOS:
-                type = "ATTACK_TYPE_DOS（拒绝服务）";
-                break;
-            default:
-                type = "未知";
-        }
-        document.getElementById("result-meta").innerHTML += type + "<br>";
-    }
-    // wifi_auth_mode_t -> Wifite 风格加密标签
-    function authmodeLabel(mode){
-        var labels = ["OPEN", "WEP", "WPA-P", "WPA2-P", "WPA/WPA2-P", "WPA2-E", "WPA/WPA2-E", "WPA3-P", "WPA2/WPA3-P", "WAPI"];
-        return labels[mode] || "?";
-    }
-    // RSSI 存的是 int8_t，按 uint8 读时 >127 要减 256
-    function signedByte(b){
-        return b > 127 ? b - 256 : b;
-    }
-    // 按信号强度上色
-    function rssiColor(rssi){
-        if(rssi >= -60) return "#00aa00";
-        if(rssi >= -75) return "#dd9900";
-        return "#cc0000";
-    }
-    // 触发客户端统计：会先断开管理热点，完成后自动恢复，需重新连接再刷新列表
-    function countClients() {
-        document.getElementById("count-status").innerHTML = "统计中…会先断开连接，约 20 秒后请重新连接并点刷新";
-        var oReq = new XMLHttpRequest();
-        oReq.open("POST", "http://192.168.4.1/count-clients", true);
-        oReq.send();
-    }
-    function refreshAps() {
-        document.getElementById("ap-list").innerHTML = "加载中（可能需要一些时间）...";
-        var oReq = new XMLHttpRequest();
-        oReq.onload = function() {
-            document.getElementById("ap-list").innerHTML = "<th>ESSID</th><th>CH</th><th>ENCR</th><th>PWR</th><th>CLIENT</th><th>BSSID</th>";
-            var arrayBuffer = oReq.response;
-            if(arrayBuffer) {
-                var byteArray = new Uint8Array(arrayBuffer);
-                for  (let i = 0; i < byteArray.byteLength; i = i + 43) {
-                    var tr = document.createElement('tr');
-                    tr.setAttribute("id", Math.floor(i / 43));
-                    tr.setAttribute("onClick", "selectAp(this)");
-                    var td_ssid = document.createElement('td');
-                    var td_ch = document.createElement('td');
-                    var td_encr = document.createElement('td');
-                    var td_rssi = document.createElement('td');
-                    var td_clients = document.createElement('td');
-                    var td_bssid = document.createElement('td');
-                    var ssidText = new TextDecoder("utf-8").decode(byteArray.subarray(i + 0, i + 32));
-                    td_ssid.style.textAlign = "left";
-                    td_ssid.innerHTML = ssidText ? ssidText : "(隐藏热点)";
-                    td_ch.innerHTML = byteArray[i + 40];
-                    td_encr.innerHTML = authmodeLabel(byteArray[i + 41]);
-                    var rssi = signedByte(byteArray[i + 39]);
-                    td_rssi.style.color = rssiColor(rssi);
-                    td_rssi.innerHTML = rssi + " dBm";
-                    var clients = byteArray[i + 42];
-                    td_clients.innerHTML = clients;
-                    for(let j = 0; j < 6; j++){
-                        td_bssid.innerHTML += uint8ToHex(byteArray[i + 33 + j]) + ":";
-                    }
-                    td_bssid.style.textAlign = "left";
-                    td_bssid.innerHTML = td_bssid.innerHTML.slice(0, -1);
-                    tr.appendChild(td_ssid);
-                    tr.appendChild(td_ch);
-                    tr.appendChild(td_encr);
-                    tr.appendChild(td_rssi);
-                    tr.appendChild(td_clients);
-                    tr.appendChild(td_bssid);
-                    document.getElementById("ap-list").appendChild(tr);
-                }
+            cont.innerHTML =
+                '<p>AP MAC: <code>' + r.mac_ap + '</code></p>' +
+                '<p>STA MAC: <code>' + r.mac_sta + '</code></p>' +
+                '<p>SSID: <code>' + r.ssid_text + '</code></p>' +
+                '<p>PMKID 数量: ' + r.pmkid_count + '</p>';
+            r.pmkids.forEach(function(p, i){
+                cont.innerHTML += '<p>PMKID #' + i + ': <code>' + p + '</code></p>';
+            });
+            if(r.hashcat){
+                cont.innerHTML += '<p style="margin-top:12px;color:#3fb950;">Hashcat 就绪:</p>' +
+                    '<pre><code>' + r.hashcat + '</code></pre>';
             }
-        };
-        oReq.onerror = function() {
-            document.getElementById("ap-list").innerHTML = "错误";
-        };
-        oReq.open("GET", "http://192.168.4.1/ap-list", true);
-        oReq.responseType = "arraybuffer";
-        oReq.send();
-    }
-    function selectAp(el) {
-        console.log(el.id);
-        if(selectedApElement != -1){
-            selectedApElement.classList.remove("selected")
-        }
-        selectedApElement=el;
-        el.classList.add("selected");
-    }
-    function runAttack() {
-        if(selectedApElement == -1){
-            console.log("No AP selected. Attack not started.");
-            document.getElementById("errors").innerHTML = "未选择目标热点。攻击未开始。";
-            return;
-        }
-        hideAllSections();
-        document.getElementById("running").style.display = "block";
-        var arrayBuffer = new ArrayBuffer(4);
-        var uint8Array = new Uint8Array(arrayBuffer);
-        uint8Array[0] = parseInt(selectedApElement.id);
-        uint8Array[1] = parseInt(document.getElementById("attack_type").value);
-        uint8Array[2] = parseInt(document.getElementById("attack_method").value);
-        uint8Array[3] = parseInt(document.getElementById("attack_timeout").value);
-        var oReq = new XMLHttpRequest();
-        oReq.open("POST", "http://192.168.4.1/run-attack", true);
-        oReq.send(arrayBuffer);
-        getStatus();
-        attack_timeout = parseInt(document.getElementById("attack_timeout").value);
-        time_elapsed = 0;
-        running_poll = setInterval(countProgress, running_poll_interval);
-    }
-    function resetAttack(){
-        hideAllSections();
-        showAttackConfig();
-        var oReq = new XMLHttpRequest();
-        oReq.open("HEAD", "http://192.168.4.1/reset", true);
-        oReq.send();
-    }
-    function resultPmkid(attack_content, attack_content_size){
-        var mac_ap = "";
-        var mac_sta = "";
-        var ssid = "";
-        var ssid_text = "";
-        var pmkid = "";
-        var index = 0;
-        for(let i = 0; i < 6; i = i + 1) {
-            mac_ap += uint8ToHex(attack_content[index + i]);
-        }
-        index = index + 6;
-        for(let i = 0; i < 6; i = i + 1) {
-            mac_sta += uint8ToHex(attack_content[index + i]);
-        }
-        index = index + 6;
-        for(let i = 0; i < attack_content[index]; i = i + 1) {
-            ssid += uint8ToHex(attack_content[index + 1 + i]);
-            ssid_text += String.fromCharCode(attack_content[index + 1 + i]);
-        }
-        index = index + attack_content[index] + 1;
-        var pmkid_cnt = 0;
-        for(let i = 0; i < attack_content_size - index; i = i + 1) {
-            if((i % 16) == 0){
-                pmkid += "<br>";
-                pmkid += "</code>PMKID #" + pmkid_cnt + ": <code>";
-                pmkid_cnt += 1;
-            }
-            pmkid += uint8ToHex(attack_content[index + i]);
-        }
-        document.getElementById("result-content").innerHTML = "";
-        document.getElementById("result-content").innerHTML += "AP 的 MAC 地址: <code>" + mac_ap + "</code><br>";
-        document.getElementById("result-content").innerHTML += "STA 的 MAC 地址: <code>" + mac_sta + "</code><br>";
-        document.getElementById("result-content").innerHTML += "(E)SSID: <code>" + ssid + "</code> (" + ssid_text + ")";
-        document.getElementById("result-content").innerHTML += "<code>" + pmkid + "</code><br>";
-        document.getElementById("result-content").innerHTML += "<br>Hashcat 就绪格式:"
-        document.getElementById("result-content").innerHTML += "<code>" + pmkid + "*" + mac_ap + "*" + mac_sta  + "*" + ssid  + "</code><br>";
-    }
-    function resultHandshake(attack_content, attack_content_size){
-        document.getElementById("result-content").innerHTML = "";
-        var pcap_link = document.createElement("a");
-        pcap_link.setAttribute("href", "capture.pcap");
-        pcap_link.text = "下载 PCAP 文件";
-        var hccapx_link = document.createElement("a");
-        hccapx_link.setAttribute("href", "capture.hccapx");
-        hccapx_link.text = "下载 HCCAPX 文件";
-        document.getElementById("result-content").innerHTML += "<p>" + pcap_link.outerHTML + "</p>";
-        document.getElementById("result-content").innerHTML += "<p>" + hccapx_link.outerHTML + "</p>";
-        var handshakes = "";
-        for(let i = 0; i < attack_content_size; i = i + 1) {
-            handshakes += uint8ToHex(attack_content[i]);
-            if(i % 50 == 49) {
-                handshakes += "\n";
-            }
-        }
-        document.getElementById("result-content").innerHTML += "<pre><code>" + handshakes + "</code></pre>";
-    }
-    function uint8ToHex(uint8){
-        return ("00" + uint8.toString(16)).slice(-2);
-    }
-    function updateConfigurableFields(el){
-        document.getElementById("attack_method").outerHTML = defaultAttackMethods;
-        switch(parseInt(el.value)){
-            case AttackTypeEnum.ATTACK_TYPE_PASSIVE:
-                console.log("PASSIVE configuration");
-                break;
-            case AttackTypeEnum.ATTACK_TYPE_HANDSHAKE:
-                console.log("HANDSHAKE configuration");
-                document.getElementById("attack_timeout").value = 60;
-                setAttackMethods(["DEAUTH_BROADCAST（广播解除认证 - 主动）", "DEAUTH_ROGUE_AP（伪造热点 - 被动）", "CAPTURE_ONLY（仅捕获 - 被动）"]);
-                break;
-            case AttackTypeEnum.ATTACK_TYPE_PMKID:
-                console.log("PMKID configuration");
-                document.getElementById("attack_timeout").value = 5;
-                break;
-            case AttackTypeEnum.ATTACK_TYPE_DOS:
-                console.log("DOS configuration");
-                document.getElementById("attack_timeout").value = 120;
-                setAttackMethods(["DEAUTH_BROADCAST（广播解除认证 - 主动）", "DEAUTH_ROGUE_AP（伪造热点 - 被动）", "DEAUTH_COMBINE_ALL（组合全部）"]);
-                break;
-            default:
-                console.log("Unknown attack type");
-                break;
-        }
-    }
-    function setAttackMethods(attackMethodsArray){
-        document.getElementById("attack_method").removeAttribute("disabled");
-        attackMethodsArray.forEach(function(method, index){
-            let option = document.createElement("option");
-            option.value = index;
-            option.text = method;
-            // 只默认选中第一个，避免全部 selected=true 时浏览器选到最后一个
-            if(index === 0){
-                option.selected = true;
-            }
-            document.getElementById("attack_method").appendChild(option);
         });
     }
-    </script>
+}
+
+/* ── 重置攻击 ──────────────────────────────────── */
+function resetAttack(){
+    hideAll(); hideMsg();
+    selectedAp = -1;
+    ajax('HEAD', 'http://192.168.4.1/reset', undefined, function(){});
+    show('sec-ready');
+    refreshAps();
+}
+
+/* ── 启动 ──────────────────────────────────────── */
+window.onload = function(){ getStatus(); };
+</script>
 </body>
 </html>
