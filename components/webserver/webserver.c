@@ -134,7 +134,8 @@ static esp_err_t uri_ap_list_get_handler(httpd_req_t *req) {
 
         httpd_resp_send_chunk(req, chunk, off);
     }
-    return httpd_resp_send_chunk(req, "]", 1);
+    httpd_resp_send_chunk(req, "]", 1);
+    return httpd_resp_send_chunk(req, NULL, 0);
 }
 
 static httpd_uri_t uri_ap_list_get = {
@@ -402,6 +403,7 @@ void webserver_run(){
     ESP_LOGD(TAG, "Running webserver");
 
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+    config.max_uri_handlers = 12;
     httpd_handle_t server = NULL;
 
     ESP_ERROR_CHECK(httpd_start(&server, &config));
