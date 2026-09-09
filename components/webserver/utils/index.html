@@ -5,393 +5,616 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>ESP32 Wi-Fi 渗透测试工具</title>
     <style>
+        :root {
+            --bg: #0a0e14;
+            --surface: #131820;
+            --surface2: #1a2030;
+            --border: #242d3d;
+            --border-hl: #3b82f6;
+            --text: #e2e8f0;
+            --text2: #8b99b0;
+            --accent: #3b82f6;
+            --accent2: #60a5fa;
+            --green: #22c55e;
+            --green-bg: rgba(34,197,94,0.1);
+            --yellow: #eab308;
+            --yellow-bg: rgba(234,179,8,0.1);
+            --red: #ef4444;
+            --red-bg: rgba(239,68,68,0.1);
+            --blue-bg: rgba(59,130,246,0.1);
+            --radius: 12px;
+            --radius-sm: 8px;
+        }
         * { margin:0; padding:0; box-sizing:border-box; }
         body {
-            font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background: #0d1117; color: #c9d1d9;
-            min-height: 100vh; padding: 24px 16px;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 32px 20px;
+            line-height: 1.5;
         }
-        h1 { font-size: 1.5em; color: #58a6ff; margin-bottom: 16px; }
-        h2 { font-size: 1.1em; color: #8b949e; margin-bottom: 12px; }
+
+        /* 顶部标题栏 */
+        .header {
+            display: flex; align-items: center; gap: 14px;
+            margin-bottom: 28px;
+        }
+        .header .logo {
+            width: 44px; height: 44px;
+            background: linear-gradient(135deg, var(--accent), #8b5cf6);
+            border-radius: var(--radius-sm);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px; color: #fff; flex-shrink: 0;
+        }
+        .header h1 { font-size: 1.4em; font-weight: 700; letter-spacing: -0.3px; }
+        .header .sub { font-size: 0.82em; color: var(--text2); margin-top: 2px; }
 
         /* 卡片 */
         .card {
-            background: #161b22; border: 1px solid #30363d;
-            border-radius: 8px; padding: 20px; margin-bottom: 16px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+            margin-bottom: 20px;
+            transition: border-color .2s;
         }
+        .card:hover { border-color: #2d3a52; }
+        .card-title {
+            font-size: 1.05em; font-weight: 600; color: var(--text);
+            margin-bottom: 16px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .card-title .icon { font-size: 1.1em; }
 
         /* 表格 */
+        .table-wrap {
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+        }
         table { width: 100%; border-collapse: collapse; font-size: 0.88em; }
         th {
-            background: #1f2937; color: #8b949e; font-weight: 600;
-            padding: 10px 12px; text-align: center;
-            border-bottom: 2px solid #30363d; white-space: nowrap;
+            background: var(--surface2);
+            color: var(--text2);
+            font-weight: 600;
+            padding: 12px 14px;
+            text-align: center;
+            white-space: nowrap;
+            border-bottom: 1px solid var(--border);
+            position: sticky; top: 0;
         }
         td {
-            padding: 8px 12px; text-align: center;
-            border-bottom: 1px solid #21262d;
+            padding: 11px 14px;
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+            transition: background .12s;
         }
-        tr { transition: background .15s; cursor: pointer; }
-        tr:hover { background: #1c2533; }
-        tr.selected { background: #1a3a5c !important; outline: 2px solid #58a6ff; }
-        td.ssid { text-align: left; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        td.bssid { text-align: left; font-family: "SF Mono", "Fira Code", monospace; font-size: 0.9em; color: #8b949e; }
-        td.rssi { font-weight: 600; }
+        tbody tr:last-child td { border-bottom: none; }
+        tr { cursor: pointer; }
+        tr:hover { background: var(--surface2); }
+        tr.selected {
+            background: var(--blue-bg) !important;
+            box-shadow: inset 3px 0 0 var(--accent);
+        }
+        td.ssid {
+            text-align: left;
+            max-width: 180px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-weight: 500;
+        }
+        td.bssid {
+            text-align: left;
+            font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+            font-size: 0.88em;
+            color: var(--text2);
+        }
+        td.rssi { font-weight: 600; font-variant-numeric: tabular-nums; }
+        .rssi-bar {
+            display: inline-block;
+            width: 4px; height: 14px;
+            border-radius: 2px;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+
+        /* 信号强度色块 */
+        .rssi-strong { background: var(--green); }
+        .rssi-mid { background: var(--yellow); }
+        .rssi-weak { background: var(--red); }
+
+        /* 加密标签 */
+        .encr-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.82em;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .encr-open { background: var(--red-bg); color: var(--red); }
+        .encr-wpa { background: var(--yellow-bg); color: var(--yellow); }
+        .encr-wpa2 { background: var(--green-bg); color: var(--green); }
+        .encr-wpa3 { background: var(--blue-bg); color: var(--accent2); }
+
+        /* 客户端数 badge */
+        .client-badge {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 24px; height: 24px;
+            padding: 0 6px;
+            border-radius: 12px;
+            font-size: 0.82em; font-weight: 600;
+            background: var(--surface2); color: var(--text2);
+        }
+        .client-badge.has { background: var(--blue-bg); color: var(--accent2); }
 
         /* 按钮 */
-        button, .btn {
-            background: #238636; color: #fff; border: none;
-            padding: 8px 16px; border-radius: 6px; cursor: pointer;
-            font-size: 0.9em; font-weight: 500; transition: background .15s;
+        button {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 9px 18px;
+            border: none; border-radius: var(--radius-sm);
+            font-size: 0.88em; font-weight: 600;
+            cursor: pointer; transition: all .15s;
+            white-space: nowrap;
         }
-        button:hover { background: #2ea043; }
-        button:disabled { background: #21262d; color: #484f58; cursor: not-allowed; }
-        button.secondary { background: #30363d; }
-        button.secondary:hover { background: #3d444d; }
-        button.danger { background: #da3633; }
-        button.danger:hover { background: #f85149; }
+        .btn-primary {
+            background: var(--accent); color: #fff;
+            box-shadow: 0 1px 3px rgba(59,130,246,0.3);
+        }
+        .btn-primary:hover { background: #2563eb; box-shadow: 0 2px 8px rgba(59,130,246,0.4); }
+        .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+        .btn-secondary:hover { background: var(--border); }
+        .btn-danger { background: var(--red); color: #fff; }
+        .btn-danger:hover { background: #dc2626; }
+        button:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-group { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
 
         /* 表单 */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .form-full { grid-column: 1 / -1; }
+        .form-group label {
+            display: block; color: var(--text2); margin-bottom: 6px;
+            font-size: 0.85em; font-weight: 500;
+        }
         select, input[type=number] {
-            background: #0d1117; color: #c9d1d9; border: 1px solid #30363d;
-            padding: 8px 12px; border-radius: 6px; font-size: 0.9em;
-            width: 100%; max-width: 320px;
+            width: 100%;
+            background: var(--bg);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 10px 14px;
+            border-radius: var(--radius-sm);
+            font-size: 0.9em;
+            transition: border-color .15s;
+            appearance: none;
+            -webkit-appearance: none;
         }
-        select:focus, input:focus { outline: none; border-color: #58a6ff; }
-        label { display: block; color: #8b949e; margin-bottom: 6px; font-size: 0.88em; }
-        .form-row { margin-bottom: 14px; }
+        select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' fill='none' stroke='%238b99b0' stroke-width='1.5'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 36px;
+        }
+        select:focus, input:focus { outline: none; border-color: var(--accent); }
 
-        /* 状态 */
-        .status-bar {
-            display: flex; align-items: center; gap: 12px;
-            padding: 12px 16px; border-radius: 6px; margin-bottom: 16px;
-            font-size: 0.92em;
+        /* 状态消息 */
+        .toast {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            padding: 10px 20px; border-radius: var(--radius-sm);
+            font-size: 0.88em; font-weight: 500;
+            z-index: 999; pointer-events: none;
+            animation: fadeIn .2s ease;
         }
-        .status-bar.info { background: #1a3a5c; color: #58a6ff; }
-        .status-bar.warn { background: #3d2e00; color: #d29922; }
-        .status-bar.error { background: #3d1414; color: #f85149; }
-        .status-bar.ok { background: #1a3d2e; color: #3fb950; }
+        .toast.info { background: var(--accent); color: #fff; }
+        .toast.warn { background: var(--yellow); color: #000; }
+        .toast.error { background: var(--red); color: #fff; }
+        .toast.ok { background: var(--green); color: #fff; }
+        @keyframes fadeIn { from { opacity:0; transform:translateX(-50%) translateY(-8px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
 
-        /* 进度 */
-        .progress { font-family: monospace; font-size: 0.95em; color: #58a6ff; }
+        /* 运行中卡片 */
+        .running-card {
+            text-align: center; padding: 40px 24px;
+        }
+        .spinner {
+            width: 48px; height: 48px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .running-title { font-size: 1.15em; font-weight: 600; margin-bottom: 8px; }
+        .running-time {
+            font-family: "SF Mono", monospace;
+            font-size: 2em; font-weight: 700;
+            color: var(--accent);
+            margin: 16px 0;
+        }
+        .running-hint {
+            color: var(--yellow); font-size: 0.85em;
+            background: var(--yellow-bg);
+            padding: 10px 16px; border-radius: var(--radius-sm);
+            display: inline-block; margin-top: 8px;
+        }
 
-        /* 结果 */
-        .result-section pre {
-            background: #0d1117; border: 1px solid #30363d;
-            border-radius: 6px; padding: 12px; overflow-x: auto;
-            font-size: 0.82em; color: #c9d1d9; margin: 8px 0;
+        /* 结果卡片 */
+        .result-header {
+            display: flex; align-items: center; gap: 10px;
+            margin-bottom: 16px;
         }
-        .result-section a {
-            color: #58a6ff; text-decoration: none;
+        .result-badge {
+            padding: 4px 12px; border-radius: 20px;
+            font-size: 0.85em; font-weight: 600;
         }
-        .result-section a:hover { text-decoration: underline; }
+        .result-badge.ok { background: var(--green-bg); color: var(--green); }
+        .result-badge.warn { background: var(--yellow-bg); color: var(--yellow); }
+        .result-type { color: var(--text2); font-size: 0.88em; }
+        .result-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 16px 0;
+        }
+        .result-item {
+            background: var(--surface2);
+            padding: 12px 16px;
+            border-radius: var(--radius-sm);
+        }
+        .result-label { font-size: 0.78em; color: var(--text2); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .result-value {
+            font-family: "SF Mono", monospace;
+            font-size: 0.92em; color: var(--text);
+            word-break: break-all;
+        }
+        .download-links {
+            display: flex; gap: 10px; margin: 16px 0;
+        }
+        .download-links a {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 10px 16px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--accent2);
+            text-decoration: none;
+            font-size: 0.88em; font-weight: 500;
+            transition: all .15s;
+        }
+        .download-links a:hover { background: var(--border); border-color: var(--accent); }
+
+        /* Hashcat 输出 */
+        .hashcat-box {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 14px;
+            margin-top: 12px;
+            font-family: "SF Mono", monospace;
+            font-size: 0.82em;
+            color: var(--green);
+            word-break: break-all;
+            line-height: 1.6;
+        }
+        .hashcat-label {
+            font-size: 0.82em; font-weight: 600; color: var(--green);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* 空状态 */
+        .empty {
+            text-align: center; padding: 32px;
+            color: var(--text2); font-size: 0.92em;
+        }
+        .empty .spinner-sm {
+            display: inline-block;
+            width: 20px; height: 20px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
 
         /* 隐藏 */
         .hidden { display: none !important; }
 
         /* 响应式 */
         @media (max-width: 600px) {
-            body { padding: 12px 8px; }
-            .card { padding: 14px; }
-            th, td { padding: 6px 8px; font-size: 0.82em; }
+            body { padding: 16px 12px; }
+            .card { padding: 18px 14px; }
+            .form-grid { grid-template-columns: 1fr; }
+            th, td { padding: 9px 10px; font-size: 0.82em; }
+            .result-grid { grid-template-columns: 1fr; }
+            .download-links { flex-direction: column; }
+            .running-time { font-size: 1.5em; }
         }
     </style>
 </head>
 <body>
-    <h1>ESP32 Wi-Fi 渗透测试工具</h1>
+    <!-- 顶部 -->
+    <div class="header">
+        <div class="logo">W</div>
+        <div>
+            <h1>Wi-Fi 渗透测试工具</h1>
+            <div class="sub">ESP32-C3 · 网络安全研究</div>
+        </div>
+    </div>
 
-    <div id="msg" class="status-bar info hidden"></div>
+    <div id="toast" class="hidden"></div>
 
     <!-- 攻击配置 -->
     <section id="sec-ready" class="hidden">
         <div class="card">
-            <h2>选择目标</h2>
-            <table id="ap-table">
-                <thead>
-                    <tr>
-                        <th>ESSID</th><th>CH</th><th>ENCR</th>
-                        <th>PWR</th><th>CLIENT</th><th>BSSID</th>
-                    </tr>
-                </thead>
-                <tbody id="ap-list"></tbody>
-            </table>
-            <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
-                <button class="secondary" onclick="refreshAps()">刷新</button>
-                <button class="secondary" onclick="countClients()">探测客户端</button>
-                <span id="count-status" style="color:#8b949e; font-size:0.85em; align-self:center;"></span>
+            <div class="card-title"><span class="icon">📡</span> 附近热点</div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ESSID</th><th>CH</th><th>加密</th>
+                            <th>信号</th><th>客户端</th><th>BSSID</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ap-list"></tbody>
+                </table>
+            </div>
+            <div class="btn-group">
+                <button class="btn-secondary" onclick="refreshAps()">🔄 刷新</button>
+                <button class="btn-secondary" onclick="countClients()">👥 探测客户端</button>
+                <span id="count-status" style="color:var(--text2); font-size:0.82em; align-self:center;"></span>
             </div>
         </div>
+
         <div class="card">
-            <h2>攻击配置</h2>
+            <div class="card-title"><span class="icon">⚡</span> 攻击配置</div>
             <form onsubmit="runAttack(); return false;">
-                <div class="form-row">
-                    <label for="sel-type">攻击类型</label>
-                    <select id="sel-type" onchange="onTypeChange(this)" required>
-                        <option value="1">握手捕获 (HANDSHAKE)</option>
-                        <option value="2">PMKID 捕获 (PMKID)</option>
-                        <option value="3">拒绝服务 (DOS)</option>
-                    </select>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="sel-type">攻击类型</label>
+                        <select id="sel-type" onchange="onTypeChange(this)" required>
+                            <option value="1">握手捕获 (Handshake)</option>
+                            <option value="2">PMKID 捕获</option>
+                            <option value="3">拒绝服务 (DoS)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="sel-method">攻击方式</label>
+                        <select id="sel-method" required>
+                            <option value="" disabled hidden>请先选择攻击类型</option>
+                        </select>
+                    </div>
+                    <div class="form-group form-full">
+                        <label for="inp-timeout">超时时间（秒）</label>
+                        <input type="number" min="1" max="255" id="inp-timeout" value="60" required style="max-width:160px;"/>
+                    </div>
                 </div>
-                <div class="form-row">
-                    <label for="sel-method">攻击方式</label>
-                    <select id="sel-method" required>
-                        <option value="" disabled hidden>请先选择攻击类型</option>
-                    </select>
+                <div class="btn-group">
+                    <button type="submit" class="btn-primary">🚀 开始攻击</button>
                 </div>
-                <div class="form-row">
-                    <label for="inp-timeout">超时时间（秒）</label>
-                    <input type="number" min="1" max="255" id="inp-timeout" value="60" required/>
-                </div>
-                <button type="submit">开始攻击</button>
             </form>
         </div>
     </section>
 
     <!-- 攻击运行中 -->
     <section id="sec-running" class="hidden">
-        <div class="card">
-            <div class="status-bar warn">
-                <span>攻击运行中...</span>
-                <span class="progress" id="progress"></span>
-            </div>
-            <p style="color:#d29922; font-size:0.88em; margin-top:8px;">
-                ⚠ 嗅探期间会断开连接，请稍后重新连接管理热点查看结果
-            </p>
+        <div class="card running-card">
+            <div class="spinner"></div>
+            <div class="running-title">攻击运行中</div>
+            <div class="running-time" id="progress">0 / 60 秒</div>
+            <div class="running-hint">⚠ 嗅探期间会断开连接，请稍后重新连接管理热点查看结果</div>
         </div>
     </section>
 
     <!-- 结果 -->
     <section id="sec-result" class="hidden">
-        <div class="card result-section">
+        <div class="card">
             <div id="result-meta"></div>
             <div id="result-content"></div>
-            <div style="margin-top:16px;">
-                <button class="secondary" onclick="resetAttack()">新建攻击</button>
+            <div class="btn-group" style="margin-top:20px;">
+                <button class="btn-secondary" onclick="resetAttack()">🔄 新建攻击</button>
             </div>
         </div>
     </section>
 
 <script>
-/* ── 状态 ──────────────────────────────────────── */
-var S = {
-    READY:0, RUNNING:1, FINISHED:2, TIMEOUT:3
-};
-var selectedAp = -1;
-var pollTimer = null;
-var runTimer = null;
-var timeout = 60;
-var elapsed = 0;
-var apCount = 0;
+var S={READY:0,RUNNING:1,FINISHED:2,TIMEOUT:3};
+var selectedAp=-1,pollTimer=null,runTimer=null,timeout=60,elapsed=0;
 
-/* ── 工具函数 ──────────────────────────────────── */
-function show(id){ document.getElementById(id).classList.remove('hidden'); }
-function hide(id){ document.getElementById(id).classList.add('hidden'); }
-function hideAll(){ ['sec-ready','sec-running','sec-result'].forEach(hide); }
-function msg(txt, type){
-    var el = document.getElementById('msg');
-    el.textContent = txt;
-    el.className = 'status-bar ' + (type||'info');
-    el.classList.remove('hidden');
+function show(id){document.getElementById(id).classList.remove('hidden')}
+function hide(id){document.getElementById(id).classList.add('hidden')}
+function hideAll(){['sec-ready','sec-running','sec-result'].forEach(hide)}
+function toast(txt,type){
+    var el=document.getElementById('toast');
+    el.textContent=txt;
+    el.className='toast '+(type||'info');
+    clearTimeout(el._t);
+    el._t=setTimeout(function(){el.classList.add('hidden')},4000);
 }
-function hideMsg(){ document.getElementById('msg').classList.add('hidden'); }
+function hideToast(){document.getElementById('toast').classList.add('hidden')}
 
-/* ── AJAX ──────────────────────────────────────── */
-function ajax(method, url, body, cb){
-    var x = new XMLHttpRequest();
-    x.open(method, url, true);
-    x.responseType = (body === undefined) ? 'arraybuffer' : '';
-    x.onload = function(){ cb(x); };
-    x.onerror = function(){ msg('无法连接到 ESP32，请检查是否已连接管理热点。','error'); };
+/* 加密标签样式 */
+function encrStyle(enc){
+    if(enc==='OPEN')return'encr-open';
+    if(enc.indexOf('WPA3')>=0)return'encr-wpa3';
+    if(enc.indexOf('WPA2')>=0||enc.indexOf('WPA/WPA2')>=0)return'encr-wpa2';
+    return'encr-wpa';
+}
+
+/* 信号强度 */
+function rssiHtml(rssi){
+    var cls=rssi>=-60?'rssi-strong':rssi>=-75?'rssi-mid':'rssi-weak';
+    var color=rssi>=-60?'var(--green)':rssi>=-75?'var(--yellow)':'var(--red)';
+    return'<span class="rssi-bar '+cls+'"></span><span style="color:'+color+'">'+rssi+'</span>';
+}
+
+/* AJAX */
+function ajax(method,url,body,cb){
+    var x=new XMLHttpRequest();
+    x.open(method,url,true);
+    x.responseType=(body===undefined)?'arraybuffer':'';
+    x.onload=function(){cb(x)};
+    x.onerror=function(){toast('无法连接 ESP32，请检查管理热点连接','error')};
     x.send(body);
 }
 
-/* ── 状态轮询 ──────────────────────────────────── */
+/* 状态轮询 */
 function getStatus(){
-    ajax('GET', 'http://192.168.4.1/status', undefined, function(x){
-        var buf = new Uint8Array(x.response);
-        var state = buf[0];
-        var type  = buf[1];
-        var csize = new Uint16Array(x.response, 2, 1)[0];
-        var cdata = new Uint8Array(x.response, 4);
-
-        hideAll(); hideMsg();
+    ajax('GET','http://192.168.4.1/status',undefined,function(x){
+        var buf=new Uint8Array(x.response);
+        var state=buf[0],type=buf[1];
+        var csize=new Uint16Array(x.response,2,1)[0];
+        var cdata=new Uint8Array(x.response,4);
+        hideAll();hideToast();
         switch(state){
-            case S.READY:
-                show('sec-ready');
-                refreshAps();
-                break;
-            case S.RUNNING:
-                show('sec-running');
-                pollTimer = setTimeout(getStatus, 1000);
-                break;
-            case S.FINISHED:
-                showResult('已完成', type, cdata, csize);
-                break;
-            case S.TIMEOUT:
-                showResult('已超时', type, cdata, csize);
-                break;
-            default:
-                msg('未知状态','error');
+            case S.READY:show('sec-ready');refreshAps();break;
+            case S.RUNNING:show('sec-running');pollTimer=setTimeout(getStatus,1000);break;
+            case S.FINISHED:showResult('已完成',type,cdata,csize);break;
+            case S.TIMEOUT:showResult('已超时',type,cdata,csize);break;
+            default:toast('未知状态','error');
         }
     });
 }
 
-/* ── AP 列表（JSON） ────────────────────────────── */
+/* AP 列表 */
 function refreshAps(){
-    document.getElementById('ap-list').innerHTML =
-        '<tr><td colspan="6" style="color:#8b949e;">扫描中…</td></tr>';
-    ajax('GET', 'http://192.168.4.1/ap-list', undefined, function(x){
-        var list = JSON.parse(new TextDecoder().decode(new Uint8Array(x.response)));
-        var tbody = document.getElementById('ap-list');
-        tbody.innerHTML = '';
-        apCount = list.length;
+    document.getElementById('ap-list').innerHTML='<tr><td colspan="6" class="empty"><span class="spinner-sm"></span> 扫描中…</td></tr>';
+    ajax('GET','http://192.168.4.1/ap-list',undefined,function(x){
+        var list=JSON.parse(new TextDecoder().decode(new Uint8Array(x.response)));
+        var tbody=document.getElementById('ap-list');
+        tbody.innerHTML='';
+        if(!list.length){tbody.innerHTML='<tr><td colspan="6" class="empty">未发现热点</td></tr>';return;}
         list.forEach(function(ap){
-            var tr = document.createElement('tr');
-            tr.dataset.id = ap.id;
-            tr.onclick = function(){ selectAp(tr); };
-
-            var rssiColor = ap.rssi >= -60 ? '#3fb950' : ap.rssi >= -75 ? '#d29922' : '#f85149';
-
-            tr.innerHTML =
-                '<td class="ssid">' + (ap.ssid || '(隐藏)') + '</td>' +
-                '<td>' + ap.ch + '</td>' +
-                '<td>' + ap.encr + '</td>' +
-                '<td class="rssi" style="color:' + rssiColor + '">' + ap.rssi + '</td>' +
-                '<td>' + ap.clients + '</td>' +
-                '<td class="bssid">' + ap.bssid + '</td>';
+            var tr=document.createElement('tr');
+            tr.dataset.id=ap.id;
+            tr.onclick=function(){selectAp(tr)};
+            var ec=encrStyle(ap.encr);
+            var cb=ap.clients>0?'client-badge has':'client-badge';
+            tr.innerHTML=
+                '<td class="ssid">'+(ap.ssid||'(隐藏)')+'</td>'+
+                '<td>'+ap.ch+'</td>'+
+                '<td><span class="encr-tag '+ec+'">'+ap.encr+'</span></td>'+
+                '<td class="rssi">'+rssiHtml(ap.rssi)+'</td>'+
+                '<td><span class="'+cb+'">'+ap.clients+'</span></td>'+
+                '<td class="bssid">'+ap.bssid+'</td>';
             tbody.appendChild(tr);
         });
     });
 }
-
 function selectAp(tr){
-    var prev = document.querySelector('#ap-list tr.selected');
-    if(prev) prev.classList.remove('selected');
+    var p=document.querySelector('#ap-list tr.selected');
+    if(p)p.classList.remove('selected');
     tr.classList.add('selected');
-    selectedAp = parseInt(tr.dataset.id);
+    selectedAp=parseInt(tr.dataset.id);
 }
 
-/* ── 攻击方式动态加载（JSON） ──────────────────── */
+/* 攻击方式动态加载 */
 function onTypeChange(el){
-    var type = parseInt(el.value);
-    ajax('GET', 'http://192.168.4.1/attack-config?type=' + type, undefined, function(x){
-        var cfg = JSON.parse(new TextDecoder().decode(new Uint8Array(x.response)));
-        var sel = document.getElementById('sel-method');
-        sel.innerHTML = '';
-        if(cfg.methods && cfg.methods.length){
+    ajax('GET','http://192.168.4.1/attack-config?type='+parseInt(el.value),undefined,function(x){
+        var cfg=JSON.parse(new TextDecoder().decode(new Uint8Array(x.response)));
+        var sel=document.getElementById('sel-method');
+        sel.innerHTML='';
+        if(cfg.methods&&cfg.methods.length){
             cfg.methods.forEach(function(m){
-                var opt = document.createElement('option');
-                opt.value = m.v;
-                opt.textContent = m.l;
-                sel.appendChild(opt);
+                var o=document.createElement('option');
+                o.value=m.v;o.textContent=m.l;sel.appendChild(o);
             });
-            sel.disabled = false;
-        } else {
-            var opt = document.createElement('option');
-            opt.value = 0;
-            opt.textContent = '(此类型无需选择方式)';
-            opt.disabled = true;
-            sel.appendChild(opt);
-            sel.disabled = true;
+            sel.disabled=false;
+        }else{
+            var o=document.createElement('option');
+            o.value=0;o.textContent='(此类型无需选择方式)';o.disabled=true;
+            sel.appendChild(o);sel.disabled=true;
         }
-        document.getElementById('inp-timeout').value = cfg.default_timeout;
+        document.getElementById('inp-timeout').value=cfg.default_timeout;
     });
 }
 
-/* ── 客户端探测 ────────────────────────────────── */
+/* 客户端探测 */
 function countClients(){
-    document.getElementById('count-status').textContent = '统计中…会断开连接，请稍后重新连接并刷新';
-    ajax('POST', 'http://192.168.4.1/count-clients', '', function(){});
+    document.getElementById('count-status').textContent='统计中…会断开连接';
+    ajax('POST','http://192.168.4.1/count-clients','',function(){});
 }
 
-/* ── 发起攻击 ──────────────────────────────────── */
+/* 发起攻击 */
 function runAttack(){
-    if(selectedAp === -1){
-        msg('请先选择一个目标热点','error');
-        return;
-    }
-    hideAll(); show('sec-running');
-    elapsed = 0;
-    timeout = parseInt(document.getElementById('inp-timeout').value) || 60;
-    document.getElementById('progress').textContent = '0/' + timeout + ' 秒';
-    runTimer = setInterval(function(){
+    if(selectedAp===-1){toast('请先选择目标热点','error');return;}
+    hideAll();show('sec-running');
+    elapsed=0;
+    timeout=parseInt(document.getElementById('inp-timeout').value)||60;
+    document.getElementById('progress').textContent='0 / '+timeout+' 秒';
+    runTimer=setInterval(function(){
         elapsed++;
-        document.getElementById('progress').textContent = elapsed + '/' + timeout + ' 秒';
-        if(elapsed >= timeout){
-            clearInterval(runTimer);
-            msg('请重新连接管理热点查看结果','warn');
-        }
-    }, 1000);
-
-    var buf = new Uint8Array(4);
-    buf[0] = selectedAp;
-    buf[1] = parseInt(document.getElementById('sel-type').value);
-    buf[2] = parseInt(document.getElementById('sel-method').value) || 0;
-    buf[3] = timeout;
-    ajax('POST', 'http://192.168.4.1/run-attack', buf.buffer, function(){});
-    setTimeout(getStatus, 500);
+        document.getElementById('progress').textContent=elapsed+' / '+timeout+' 秒';
+        if(elapsed>=timeout){clearInterval(runTimer);toast('请重新连接管理热点查看结果','warn');}
+    },1000);
+    var buf=new Uint8Array(4);
+    buf[0]=selectedAp;
+    buf[1]=parseInt(document.getElementById('sel-type').value);
+    buf[2]=parseInt(document.getElementById('sel-method').value)||0;
+    buf[3]=timeout;
+    ajax('POST','http://192.168.4.1/run-attack',buf.buffer,function(){});
+    setTimeout(getStatus,500);
 }
 
-/* ── 显示结果 ──────────────────────────────────── */
-function showResult(label, type, data, size){
-    hideAll(); hideMsg();
-    clearInterval(pollTimer); clearInterval(runTimer);
+/* 显示结果 */
+function showResult(label,type,data,size){
+    hideAll();hideToast();
+    clearInterval(pollTimer);clearInterval(runTimer);
     show('sec-result');
-    var meta = document.getElementById('result-meta');
-    var cont = document.getElementById('result-content');
-    meta.innerHTML = '<div class="status-bar ' + (label==='已完成'?'ok':'warn') + '">' + label + '</div>';
+    var meta=document.getElementById('result-meta');
+    var cont=document.getElementById('result-content');
+    var bc=label==='已完成'?'ok':'warn';
+    meta.innerHTML='<div class="result-header"><span class="result-badge '+bc+'">'+label+'</span><span class="result-type">握手捕获 · PMKID 捕获 · 拒绝服务</span></div>'.replace(/握手捕获|PMKID 捕获|拒绝服务/g,function(m){return['握手捕获','PMKID 捕获','拒绝服务'][type]||m});
+    meta.innerHTML+='<div class="result-header"><span class="result-badge '+bc+'">'+label+'</span><span class="result-type">'+['被动攻击','握手捕获','PMKID 捕获','拒绝服务'][type]+'</span></div>';
 
-    var types = ['被动攻击','握手捕获','PMKID 捕获','拒绝服务'];
-    meta.innerHTML += '<p style="color:#8b949e;margin:8px 0">类型: ' + (types[type]||'未知') + '</p>';
-    cont.innerHTML = '';
-
-    if(type === 1 && size > 0){
-        /* 握手结果：提供下载链接 */
-        cont.innerHTML =
-            '<p><a href="capture.pcap">下载 PCAP 文件</a></p>' +
-            '<p><a href="capture.hccapx">下载 HCCAPX 文件</a></p>';
-        var hex = '';
-        for(var i = 0; i < size; i++){
-            hex += ('0' + data[i].toString(16)).slice(-2);
-            if(i % 50 === 49) hex += '\n';
+    cont.innerHTML='';
+    if(type===1&&size>0){
+        cont.innerHTML='<div class="download-links">'+
+            '<a href="capture.pcap">📥 下载 PCAP</a>'+
+            '<a href="capture.hccapx">📥 下载 HCCAPX</a></div>';
+        var hex='';
+        for(var i=0;i<size;i++){
+            hex+=('0'+data[i].toString(16)).slice(-2);
+            if(i%32===31)hex+='\n';
         }
-        cont.innerHTML += '<pre><code>' + hex + '</code></pre>';
-    }
-    else if(type === 2){
-        /* PMKID：从后端获取格式化 JSON */
-        ajax('GET', 'http://192.168.4.1/pmkid-result', undefined, function(x){
-            var r = JSON.parse(new TextDecoder().decode(new Uint8Array(x.response)));
-            if(r.error){
-                cont.innerHTML = '<p style="color:#f85149">' + r.error + '</p>';
-                return;
-            }
-            cont.innerHTML =
-                '<p>AP MAC: <code>' + r.mac_ap + '</code></p>' +
-                '<p>STA MAC: <code>' + r.mac_sta + '</code></p>' +
-                '<p>SSID: <code>' + r.ssid_text + '</code></p>' +
-                '<p>PMKID 数量: ' + r.pmkid_count + '</p>';
-            r.pmkids.forEach(function(p, i){
-                cont.innerHTML += '<p>PMKID #' + i + ': <code>' + p + '</code></p>';
+        cont.innerHTML+='<div class="hashcat-label">握手包 HEX</div><div class="hashcat-box">'+hex+'</div>';
+    }else if(type===2){
+        ajax('GET','http://192.168.4.1/pmkid-result',undefined,function(x){
+            var r=JSON.parse(new TextDecoder().decode(new Uint8Array(x.response)));
+            if(r.error){cont.innerHTML='<div style="color:var(--red)">'+r.error+'</div>';return;}
+            cont.innerHTML=
+                '<div class="result-grid">'+
+                '<div class="result-item"><div class="result-label">AP MAC</div><div class="result-value">'+r.mac_ap+'</div></div>'+
+                '<div class="result-item"><div class="result-label">STA MAC</div><div class="result-value">'+r.mac_sta+'</div></div>'+
+                '<div class="result-item"><div class="result-label">SSID</div><div class="result-value">'+r.ssid_text+'</div></div>'+
+                '<div class="result-item"><div class="result-label">PMKID 数量</div><div class="result-value">'+r.pmkid_count+'</div></div>'+
+                '</div>';
+            r.pmkids.forEach(function(p,i){
+                cont.innerHTML+='<div class="result-item" style="margin-bottom:8px"><div class="result-label">PMKID #'+i+'</div><div class="result-value">'+p+'</div></div>';
             });
             if(r.hashcat){
-                cont.innerHTML += '<p style="margin-top:12px;color:#3fb950;">Hashcat 就绪:</p>' +
-                    '<pre><code>' + r.hashcat + '</code></pre>';
+                cont.innerHTML+='<div class="hashcat-label">Hashcat 就绪</div><div class="hashcat-box">'+r.hashcat+'</div>';
             }
         });
     }
 }
 
-/* ── 重置攻击 ──────────────────────────────────── */
+/* 重置攻击 */
 function resetAttack(){
-    hideAll(); hideMsg();
-    selectedAp = -1;
-    ajax('HEAD', 'http://192.168.4.1/reset', undefined, function(){});
-    show('sec-ready');
-    refreshAps();
+    hideAll();hideToast();
+    selectedAp=-1;
+    ajax('HEAD','http://192.168.4.1/reset',undefined,function(){});
+    show('sec-ready');refreshAps();
 }
 
-/* ── 启动 ──────────────────────────────────────── */
-window.onload = function(){ getStatus(); };
+window.onload=function(){getStatus()};
 </script>
 </body>
 </html>
