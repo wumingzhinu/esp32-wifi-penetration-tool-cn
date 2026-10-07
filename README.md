@@ -139,6 +139,53 @@ ESP32-C3 开发板（如 ESP32-C3-DevKitM-1）单价约 ¥15~25，功耗更低�
 | UI | 原始白底表格 | **深色主题、彩色标签、动画** |
 | 客户端数列 | 无 | **被动嗅探统计** |
 | 语言 | 英文 | **中文** |
+| 串口日志 | 大量 ESP_LOG + 裸 printf | **全部关闭**（`_NONE` 配置） |
+
+## 2026-10 更新：嗅探与 PMKID 修复
+
+本轮修复了帧捕获链路上的若干实际缺陷，并按要求关闭了串口调试输出。
+
+### 功能性 Bug 修复
+
+| 问题 | 现象 | 修复 |
+|------|------|------|
+| PMKID 数据类型常量错误 | `KEY_DATA_DATA_TYPE_PMKID_KDE` 写成 `4`，实际应为 `1`（802.11-2016 Table 12-6）。判断永不成立，PMKID 提取是死代码 | 常量改为 `1` |
+| OUI 常量畸形 | `KEY_DATA_OUI_IEEE80211` 为 `0x00fac00`（多一位），且对 24 位 OUI 使用 `ntohl()` 导致恒不匹配 | 改为 `0x00fac0`，比较改为逐字节读取 |
+| 帧长度含 FCS | `rx_ctrl.sig_len` 包含尾部 4 字节 FCS，原代码当作帧长使用，导致 PCAP 每个包多 4 字节 CRC、Wireshark 解析错位 | 在嗅探回调中剥离 FCS，并同步修正 `sig_len` |
+| A-MSDU 未处理 | 驱动不做反聚合，包在 A-MSDU 子帧中的 EAPoL 会被漏掉 | 解析器新增子帧遍历 |
+
+### 健壮性修复
+
+- **越界读取**：`parse_eapol_packet` / `parse_pmkid` 全程缺少长度校验，畸形帧或截断帧会读到缓冲区外；`parse_pmkid_from_key_data` 的推进量在 length 很小时会让指针回退。现已加入完整边界检查。
+- **内存对齐**：`wifi_pkt_rx_ctrl_t` 是位域结构体，各 target 布局不同，`payload` 偏移可能未对齐。新增 4 字节对齐的帧包装 + `_Static_assert`。
+- **A-MPDU 误判**：`rx_ctrl.aggregation != 0` 时 `payload[0]` 实际是 delimiter 而非帧头，原代码会当普通 MPDU 解析。现已跳过。
+- **事件注销范围**：`ESP_EVENT_ANY_BASE` / `ANY_ID` 会误注销其它处理器，已改为精确的 base + event id（4 处）。
+
+### 串口日志关闭
+
+`sdkconfig.defaults` 新增：
+
+```
+CONFIG_LOG_DEFAULT_LEVEL_NONE=y
+CONFIG_LOG_MAXIMUM_LEVEL_NONE=y
+CONFIG_BOOTLOADER_LOG_LEVEL_NONE=y
+CONFIG_BOOTLOG_ENABLE=n
+```
+
+采用 `_NONE` 而非 `CONFIG_LOG=n`，保留 log 组件但不编入任何格式串，串口不再有任何输出。同时移除了 `frame_analyzer_parser.c` 中 3 处不受 Kconfig 管辖的裸 `printf`（其中一处会把 PMKID 明文打印到串口）。
+
+> ⚠️ **如需恢复调试日志**，把上述 4 项改回即可，例如将 `CONFIG_LOG_DEFAULT_LEVEL_NONE=y` 换成 `CONFIG_LOG_DEFAULT_LEVEL_INFO=y`（并删除对应的 `_NONE` 行）。
+
+### 过滤器重构
+
+过滤掩码从运行时 `else if` 串联改为启动时一次性配置：
+
+```c
+wifictl_sniffer_start(channel, WIFICTL_SNIFF_PKT_DATA | WIFICTL_SNIFF_PKT_MGMT);
+wifictl_sniffer_set_bssid_filter(bssid);   // 传入 NULL 则不过滤
+```
+
+原版 `wifictl_sniffer_filter_frame_types()` 用 `else if` 串联，三个参数只生效一个，已删除。
 
 ## 类似项目
 * [risinek/esp32-wifi-penetration-tool](https://github.com/risinek/esp32-wifi-penetration-tool)（上游原版）
