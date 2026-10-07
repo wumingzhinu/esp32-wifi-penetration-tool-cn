@@ -39,12 +39,13 @@ static const wifi_ap_record_t *ap_record = NULL;
  * @param event_data expects wifi_promiscuous_pkt_t
  */
 static void eapolkey_frame_handler(void *args, esp_event_base_t event_base, int32_t event_id, void *event_data) {
-    ESP_LOGI(TAG, "Got EAPoL-Key frame");
     ESP_LOGD(TAG, "Processing handshake frame...");
     wifi_promiscuous_pkt_t *frame = (wifi_promiscuous_pkt_t *) event_data;
-    attack_append_status_content(frame->payload, frame->rx_ctrl.sig_len);
-    pcap_serializer_append_frame(frame->payload, frame->rx_ctrl.sig_len, frame->rx_ctrl.timestamp);
-    hccapx_serializer_add_frame((data_frame_t *) frame->payload);
+    // sig_len has the FCS stripped by the sniffer, so this is the raw 802.11 MPDU length.
+    const unsigned frame_len = frame->rx_ctrl.sig_len;
+    attack_append_status_content(frame->payload, frame_len);
+    pcap_serializer_append_frame(frame->payload, frame_len, frame->rx_ctrl.timestamp);
+    hccapx_serializer_add_frame(frame->payload, frame_len);
 }
 
 void attack_handshake_start(attack_config_t *attack_config){
@@ -53,8 +54,8 @@ void attack_handshake_start(attack_config_t *attack_config){
     ap_record = attack_config->ap_record;
     pcap_serializer_init();
     hccapx_serializer_init(ap_record->ssid, strlen((char *)ap_record->ssid));
-    wifictl_sniffer_filter_frame_types(true, false, false);
-    wifictl_sniffer_start(ap_record->primary);
+    // Only EAPoL-carrying data frames matter for a handshake capture.
+    wifictl_sniffer_start(ap_record->primary, WIFICTL_SNIFF_PKT_DATA);
     frame_analyzer_capture_start(SEARCH_HANDSHAKE, ap_record->bssid);
     ESP_ERROR_CHECK(esp_event_handler_register(FRAME_ANALYZER_EVENTS, DATA_FRAME_EVENT_EAPOLKEY_FRAME, &eapolkey_frame_handler, NULL));
     switch(attack_config->method){
@@ -92,7 +93,7 @@ void attack_handshake_stop(){
     }
     wifictl_sniffer_stop();
     frame_analyzer_capture_stop();
-    ESP_ERROR_CHECK(esp_event_handler_unregister(ESP_EVENT_ANY_BASE, ESP_EVENT_ANY_ID, &eapolkey_frame_handler));
+    ESP_ERROR_CHECK(esp_event_handler_unregister(FRAME_ANALYZER_EVENTS, DATA_FRAME_EVENT_EAPOLKEY_FRAME, &eapolkey_frame_handler));
     ap_record = NULL;
     method = -1;
     ESP_LOGD(TAG, "Handshake attack stopped");

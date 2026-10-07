@@ -1,1 +1,13 @@
 CONFIG_ESP32_WIFI_NVS_ENABLED=n
+
+# 关闭串口调试输出。
+# DEFAULT_LEVEL 决定运行时实际打印的级别，MAXIMUM_LEVEL 决定哪些日志被编译进固件。
+# 两者都设为 NONE 后，所有 ESP_LOG 格式串都不会进入 binary，串口不再有任何日志。
+CONFIG_LOG_DEFAULT_LEVEL_NONE=y
+CONFIG_LOG_MAXIMUM_LEVEL_NONE=y
+
+# 关闭 bootloader 日志（bootloader 不支持 MAXIMUM_LEVEL，只能压到 NONE）
+CONFIG_BOOTLOADER_LOG_LEVEL_NONE=y
+
+# 不挂载 bootlog 到串口
+CONFIG_BOOTLOG_ENABLE=n

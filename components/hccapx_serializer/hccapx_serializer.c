@@ -97,11 +97,19 @@ hccapx_t *hccapx_serializer_get(){
  * @return 1 if error occured
  * @return 0 if successfully saved
  */
-static unsigned save_eapol(eapol_packet_t *eapol_packet, eapol_key_packet_t *eapol_key_packet){
-    unsigned eapol_len = 0;
-    eapol_len = sizeof(eapol_packet_header_t) + ntohs(eapol_packet->header.packet_body_length);
+static unsigned save_eapol(eapol_packet_t *eapol_packet, eapol_key_packet_t *eapol_key_packet, unsigned eapol_available){
+    uint16_t body_len;
+    memcpy(&body_len, &eapol_packet->header.packet_body_length, sizeof(body_len));
+    body_len = ntohs(body_len);
+
+    unsigned eapol_len = sizeof(eapol_packet_header_t) + body_len;
     if(eapol_len > HCCAPX_MAX_EAPOL_SIZE){
         ESP_LOGW(TAG, "EAPoL is too long (%u/%u)", eapol_len, HCCAPX_MAX_EAPOL_SIZE);
+        return 1;
+    }
+    // Never copy more than the frame actually holds.
+    if(eapol_len > eapol_available){
+        ESP_LOGW(TAG, "EAPoL truncated (%u/%u)", eapol_len, eapol_available);
         return 1;
     }
     hccapx.eapol_len = eapol_len;
@@ -134,7 +142,7 @@ static void ap_message_m1(eapol_key_packet_t *eapol_key_packet){
  * @param eapol_packet 
  * @param eapol_key_packet 
  */
-static void ap_message_m3(eapol_packet_t* eapol_packet, eapol_key_packet_t *eapol_key_packet){
+static void ap_message_m3(eapol_packet_t* eapol_packet, eapol_key_packet_t *eapol_key_packet, unsigned eapol_available){
     ESP_LOGD(TAG, "From AP M3");
     message_ap = 3;
     if(message_ap == 0){
@@ -146,7 +154,7 @@ static void ap_message_m3(eapol_packet_t* eapol_packet, eapol_key_packet_t *eapo
         hccapx.message_pair = 2;
         return;
     }
-    if(save_eapol(eapol_packet, eapol_key_packet) != 0){
+    if(save_eapol(eapol_packet, eapol_key_packet, eapol_available) != 0){
         return;
     }
     eapol_source = 3;
@@ -162,13 +170,13 @@ static void ap_message_m3(eapol_packet_t* eapol_packet, eapol_key_packet_t *eapo
  * @param eapol_packet 
  * @param eapol_key_packet 
  */
-static void ap_message(data_frame_t *frame, eapol_packet_t* eapol_packet, eapol_key_packet_t *eapol_key_packet){
-    if((!is_array_zero(hccapx.mac_sta, 6)) && (memcmp(frame->mac_header.addr1, hccapx.mac_sta, 6) != 0)){
+static void ap_message(const uint8_t *payload, eapol_packet_t* eapol_packet, eapol_key_packet_t *eapol_key_packet, unsigned eapol_available){
+    if((!is_array_zero(hccapx.mac_sta, 6)) && (memcmp(payload + 4, hccapx.mac_sta, 6) != 0)){
         ESP_LOGE(TAG, "Different STA");
         return;
     }
     if(message_ap == 0){
-        memcpy(hccapx.mac_ap, frame->mac_header.addr2, 6);
+        memcpy(hccapx.mac_ap, payload + 10, 6);
     }
     // Determine which message this is by Key MIC
     // Key MIC is always empty in M1 and always present in M3
@@ -177,7 +185,7 @@ static void ap_message(data_frame_t *frame, eapol_packet_t* eapol_packet, eapol_
         ap_message_m1(eapol_key_packet);
     } 
     else {
-        ap_message_m3(eapol_packet, eapol_key_packet);
+        ap_message_m3(eapol_packet, eapol_key_packet, eapol_available);
     }
 }
 
@@ -190,11 +198,11 @@ static void ap_message(data_frame_t *frame, eapol_packet_t* eapol_packet, eapol_
  * @param eapol_packet 
  * @param eapol_key_packet 
  */
-static void sta_message_m2(eapol_packet_t* eapol_packet, eapol_key_packet_t *eapol_key_packet){
+static void sta_message_m2(eapol_packet_t* eapol_packet, eapol_key_packet_t *eapol_key_packet, unsigned eapol_available){
     ESP_LOGD(TAG, "From STA M2");
     message_sta = 2;
     memcpy(hccapx.nonce_sta, eapol_key_packet->key_nonce, 32);
-    if(save_eapol(eapol_packet, eapol_key_packet) != 0){
+    if(save_eapol(eapol_packet, eapol_key_packet, eapol_available) != 0){
         return;
     }
     eapol_source = 2;
@@ -211,7 +219,7 @@ static void sta_message_m2(eapol_packet_t* eapol_packet, eapol_key_packet_t *eap
  * @param eapol_packet 
  * @param eapol_key_packet 
  */
-static void sta_message_m4(eapol_packet_t* eapol_packet, eapol_key_packet_t *eapol_key_packet){
+static void sta_message_m4(eapol_packet_t* eapol_packet, eapol_key_packet_t *eapol_key_packet, unsigned eapol_available){
     ESP_LOGD(TAG, "From STA M4");
     if((message_sta == 2) && (eapol_source != 0)){
         // If message 2 was already fully processed, there is no need to process M4 again 
@@ -227,7 +235,7 @@ static void sta_message_m4(eapol_packet_t* eapol_packet, eapol_key_packet_t *eap
         hccapx.message_pair = 4;
         return;
     }
-    if(save_eapol(eapol_packet, eapol_key_packet) != 0){
+    if(save_eapol(eapol_packet, eapol_key_packet, eapol_available) != 0){
         return;
     }
     eapol_source = 4;
@@ -246,11 +254,11 @@ static void sta_message_m4(eapol_packet_t* eapol_packet, eapol_key_packet_t *eap
  * @param eapol_packet 
  * @param eapol_key_packet 
  */
-static void sta_message(data_frame_t *frame, eapol_packet_t* eapol_packet, eapol_key_packet_t *eapol_key_packet){
+static void sta_message(const uint8_t *payload, eapol_packet_t* eapol_packet, eapol_key_packet_t *eapol_key_packet, unsigned eapol_available){
     if(is_array_zero(hccapx.mac_sta, 6)){
-        memcpy(hccapx.mac_sta, frame->mac_header.addr2, 6);
+        memcpy(hccapx.mac_sta, payload + 10, 6);
     }
-    else if(memcmp(frame->mac_header.addr2, hccapx.mac_sta, 6) != 0){
+    else if(memcmp(payload + 10, hccapx.mac_sta, 6) != 0){
         ESP_LOGE(TAG, "Different STA");
         return;
     }
@@ -258,10 +266,10 @@ static void sta_message(data_frame_t *frame, eapol_packet_t* eapol_packet, eapol
     // SNonce is present in M2, empty in M4
     // Ref: 802.11i-2004 [8.5.3]
     if(!is_array_zero(eapol_key_packet->key_nonce, 16)){
-        sta_message_m2(eapol_packet, eapol_key_packet);
+        sta_message_m2(eapol_packet, eapol_key_packet, eapol_available);
     } 
     else {
-        sta_message_m4(eapol_packet, eapol_key_packet);
+        sta_message_m4(eapol_packet, eapol_key_packet, eapol_available);
     }
 }
 
@@ -278,15 +286,26 @@ static void sta_message(data_frame_t *frame, eapol_packet_t* eapol_packet, eapol
  * 
  * @param frame 
  */
-void hccapx_serializer_add_frame(data_frame_t *frame){
-    eapol_packet_t *eapol_packet = parse_eapol_packet(frame);
+void hccapx_serializer_add_frame(const uint8_t *payload, unsigned payload_len){
+    eapol_packet_t *eapol_packet = parse_eapol_packet(payload, payload_len);
+    if(eapol_packet == NULL){
+        return;
+    }
     eapol_key_packet_t *eapol_key_packet = parse_eapol_key_packet(eapol_packet);
+    if(eapol_key_packet == NULL){
+        return;
+    }
+    const unsigned eapol_offset = (unsigned)((const uint8_t *)eapol_packet - payload);
+    if(payload_len <= eapol_offset){
+        return;
+    }
+    const unsigned eapol_available = payload_len - eapol_offset;
     // Determine direction of the frame by comparing BSSID (addr3) with source address (addr2)
-    if(memcmp(frame->mac_header.addr2, frame->mac_header.addr3, 6) == 0){
-        ap_message(frame, eapol_packet, eapol_key_packet);
+    if(memcmp(payload + 10, payload + 16, 6) == 0){
+        ap_message(payload, eapol_packet, eapol_key_packet, eapol_available);
     } 
-    else if(memcmp(frame->mac_header.addr1, frame->mac_header.addr3, 6) == 0){
-        sta_message(frame, eapol_packet, eapol_key_packet);
+    else if(memcmp(payload + 4, payload + 16, 6) == 0){
+        sta_message(payload, eapol_packet, eapol_key_packet, eapol_available);
     } 
     else {
         ESP_LOGE(TAG, "Unknown frame format. BSSID is not source nor destionation.");

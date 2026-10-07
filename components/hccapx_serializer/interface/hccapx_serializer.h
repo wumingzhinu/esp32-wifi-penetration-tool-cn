@@ -57,8 +57,9 @@ hccapx_t *hccapx_serializer_get();
  * If frame contains handshake from another STA than the one that was already added before,
  * frame will be skipped and error message will be printed.
  * 
- * @param frame data frame with EAPoL-Key packet
+ * @param payload start of the 802.11 MAC header of the captured frame
+ * @param payload_len length of the frame in bytes, FCS excluded
  */
-void hccapx_serializer_add_frame(data_frame_t *frame);
+void hccapx_serializer_add_frame(const uint8_t *payload, unsigned payload_len);
 
 #endif

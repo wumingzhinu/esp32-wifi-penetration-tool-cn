@@ -128,15 +128,21 @@ typedef struct __attribute__((__packed__)) {
 #define KEY_DATA_TYPE 0xdd
 
 /**
- * @note Needs trailing byte due to casting to uint32_t and converting from netlong
+ * IEEE 802.11 OUI (00:fa:c0) as a 24-bit big-endian value.
+ * @note Compare against the 3 OUI bytes in network order, i.e. ((b[0]<<16)|(b[1]<<8)|b[2]).
+ *       Do not byte-swap this value: applying ntohl() to a 24-bit OUI yields 0xc0fa0000,
+ *       which never matches.
  * @see Ref: 802.11-2016 [12.7.2, Table 12-6]
  */
-#define KEY_DATA_OUI_IEEE80211 0x00fac00
+#define KEY_DATA_OUI_IEEE80211 0x00fac0
 
 /**
+ * Key Data Type for a PMKID Key Data Element carrying the IEEE 802.11 OUI (00:fa:c0).
+ * @note Value 1, not 4. Table 12-6 of 802.11-2016 lists Data Type 1 as "PMKID" for the
+ *       IEEE OUI; 4 belongs to a different vendor's OUI.
  * @see Ref: 802.11-2016 [12.7.2, Table 12-6]
  */
-#define KEY_DATA_DATA_TYPE_PMKID_KDE 4
+#define KEY_DATA_DATA_TYPE_PMKID_KDE 1
 
 /**
  * @see Ref: 802.11-2016 [12.7.2]

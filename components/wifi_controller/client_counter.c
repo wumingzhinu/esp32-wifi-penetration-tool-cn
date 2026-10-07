@@ -6,6 +6,7 @@
 
 #include <string.h>
 #include "esp_log.h"
+#include "esp_err.h"
 #include "esp_event.h"
 #include "esp_wifi.h"
 #include "esp_wifi_types.h"
@@ -57,11 +58,12 @@ void wifictl_clear_client_counts(){
 static void on_frame(void *arg, esp_event_base_t base, int32_t id, void *data){
     if(!data) return;
     wifi_promiscuous_pkt_t *pkt = (wifi_promiscuous_pkt_t *)data;
-    if(pkt->rx_ctrl.sig_len < 16) return;
+    // Need Address 1 and Address 2, i.e. the first 16 bytes of the MAC header.
+    if(pkt->rx_ctrl.sig_len < WIFICTL_MAC_HDR_LEN) return;
 
-    uint8_t *frame = pkt->payload;
-    uint8_t *addr1 = frame + 4;   // 目的
-    uint8_t *addr2 = frame + 10;  // 源
+    const uint8_t *frame = pkt->payload;
+    const uint8_t *addr1 = frame + 4;   // 目的
+    const uint8_t *addr2 = frame + 10;  // 源
     if(memcmp(addr1, addr2, 6) == 0) return; // AP 自身发出的帧（beacon 等）
 
     xSemaphoreTake(lock, portMAX_DELAY);
@@ -94,7 +96,8 @@ static void counting_task(void *arg){
     ESP_LOGI(TAG, "开始统计客户端，共 %d 个 AP", aps->count);
 
     wifictl_clear_client_counts();
-    wifictl_sniffer_filter_frame_types(true, true, false); // 同时监听 data + mgmt
+    // 同时监听 data + mgmt（beacon/probe 只能从 mgmt 帧拿到）
+    wifictl_sniffer_set_bssid_filter(NULL);
 
     uint8_t channels[13] = {0};
     for(int i = 0; i < aps->count; i++){
@@ -105,7 +108,7 @@ static void counting_task(void *arg){
     for(int ch = 1; ch <= 13; ch++){
         if(!channels[ch-1]) continue;
         ESP_LOGI(TAG, "嗅探信道 %d ...", ch);
-        wifictl_sniffer_start(ch);
+        wifictl_sniffer_start(ch, WIFICTL_SNIFF_PKT_DATA | WIFICTL_SNIFF_PKT_MGMT);
         vTaskDelay(pdMS_TO_TICKS(SCAN_SECONDS * 1000));
         wifictl_sniffer_stop();
     }
@@ -114,9 +117,11 @@ static void counting_task(void *arg){
     wifictl_set_channel(CONFIG_MGMT_AP_CHANNEL);
     wifictl_mgmt_ap_start();
 
-    /* 取注册的帧回调，避免后续攻击期间无意义运行 */
+    /* 注销帧回调，避免后续攻击期间无意义运行。
+     * 必须用具体的 event_id：ANY_ID 会连带注销同一 base 上注册的其他回调。 */
     if (handler_registered) {
-        esp_event_handler_unregister(SNIFFER_EVENTS, ESP_EVENT_ANY_ID, &on_frame);
+        esp_event_handler_unregister(SNIFFER_EVENTS, SNIFFER_EVENT_CAPTURED_DATA, &on_frame);
+        esp_event_handler_unregister(SNIFFER_EVENTS, SNIFFER_EVENT_CAPTURED_MGMT, &on_frame);
         handler_registered = false;
     }
 
@@ -127,7 +132,9 @@ static void counting_task(void *arg){
 void wifictl_start_client_counting(){
     ensure_lock();
     if(!handler_registered){
-        esp_event_handler_register(SNIFFER_EVENTS, ESP_EVENT_ANY_ID, &on_frame, NULL);
+        // Register per event id, so the matching unregister cannot hit unrelated handlers.
+        ESP_ERROR_CHECK(esp_event_handler_register(SNIFFER_EVENTS, SNIFFER_EVENT_CAPTURED_DATA, &on_frame, NULL));
+        ESP_ERROR_CHECK(esp_event_handler_register(SNIFFER_EVENTS, SNIFFER_EVENT_CAPTURED_MGMT, &on_frame, NULL));
         handler_registered = true;
     }
     xTaskCreate(counting_task, "count_clients", 4096, NULL, 5, NULL);
