@@ -22,6 +22,8 @@
 #include "sniffer.h"
 #include "frame_analyzer_parser.h"
 
+ESP_EVENT_DEFINE_BASE(FRAME_ANALYZER_EVENTS);
+
 static const char *TAG = "frame_analyzer";
 static uint8_t target_bssid[6];
 static search_type_t search_type = -1;
