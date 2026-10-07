@@ -13,7 +13,7 @@
 #include <unistd.h>
 
 #include "../ap_scanner.h"
-#include "../sniffer.h"
+#include "sniffer.h"
 
 #include "esp_wifi_types.h"
 

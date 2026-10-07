@@ -14,13 +14,10 @@
 #include <string.h>
 #include "arpa/inet.h"
 
-#define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
 #include "esp_log.h"
 #include "esp_event.h"
 
 #include "frame_analyzer_types.h"
-
-static const char *TAG = "frame_analyzer:parser";
 
 
 /**
